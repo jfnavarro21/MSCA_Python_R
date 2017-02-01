@@ -1,0 +1,123 @@
+---
+title: "Workshop1"
+author: "John Navarro"
+date: "December 9, 2016"
+output: pdf_document
+---
+
+1.1 one categorical predictor
+
+```{r}
+taste.model<-lm(score~scr,data=tasteData)
+summary(taste.model)
+```
+
+hypth b1=0, rejected
+
+
+1.2 2 factors
+one way anova with 4 treatments, diff combinations of screen
+
+```{r}
+taste.model.4.treatments<-lm(score~type,data=tasteData)
+anova(taste.model.4.treatments)
+```
+type is a categorical variable, its the predictor, it is significant
+So not all groups are equal, from anova
+```{r}
+taste.cint<-confint(glht(taste.model.4.treatments,mcp(type="Tukey")))
+taste.cint
+```
+tukey test, multiple comparison
+pairwise comparisons
+plot to show which contrasts not equla to zero, DA and DB
+
+1.3 2 factors and interaction
+
+```{r}
+taste.lm<-lm(score~scr*liq,data=tasteData)
+anova(taste.lm)
+```
+screen is sign, not liq nor scr:liq
+first look at interactions, bc if significant, is there reason to look at main effects? if interatction is significant, then you want to simplyfy
+summary(taste.lm)
+
+scrfine slope is significant, not the others
+
+Hypothesis, is B3 =0?
+
+testing contrast one, testing B1+B3/2
+
+go back and look at, p value for interaction in anova
+3rd contrast p value is same in summary and anova, that B3 = 0
+
+first 2 are testing diff hypoth
+anova testing B1, B2 =0
+
+2 way anova, is testing C1=0,
+
+create linear model with contrast matrix below, replaces default contrast matrix, with one below
+
+```{r}
+M<-cbind("C1"=rep(c(-1,-1,1,1),each=4)/2,
+         "C2"=rep(c(-1,1,-1,1),each=4)/2,
+         "C3"=rep(c(1,-1,-1,1),each=4)/2)
+taste.lm2<-lm(score~M,data=tasteData)
+summary(taste.lm2)
+```
+It gives contrast testing
+P values are the same as 2 way anova
+
+
+#Taguchi experiment
+
+3 factors, each 2 levels
+(designTaguchi<-oa.design(L4.2.3))
+
+website testing
+2 diff factors, new font and new button color, nuisance variable is gender, conversion results day 1
+
+First factorial design
+(webSiteTesting.Taguchi<-webSiteTesting.factorial[c(1,3,2,4),])
+
+
+
+taguchi
+
+webSiteTesting.lm.Taguchi<-lm(Conversion.day1~Font.Type+Button.Color+Gender,data=webSiteTesting.Taguchi)
+summary(webSiteTesting.lm.Taguchi)
+
+has NAs, why?
+too many parameters, too few observations, overfitted
+
+anova shows sum of squares are zero, bad
+
+eliminate font type, run anova, font type not significant, which is different from in factorial design.
+
+drop gender, 
+
+add day 2, double taguchi plan
+
+font sshows significance, anova shows, font sig, gender on borderline
+
+fit lm with interactions,
+
+#Multiplex Arrays
+
+10 classes, each is a channel, plot them
+create multiplex assay design, need 4 binary decimals, code channesl 1-10
+comb 0000, doesnt work bc it has no signal
+assumption is one may show signal, but maybe none
+
+use multiplexer to mix them together, response and class for anova
+
+reduce # of predictors, dont want 10. bc decreases acccuracy
+
+anova(multiplexData.lm)$"Pr(>F)"[1]
+omnibus hypoth cannt be rejected
+
+
+mix 2 and mix 4 show contamination, 
+channel 5 has the signal, monitoring only 4 channels, fitting 4 predictors
+
+

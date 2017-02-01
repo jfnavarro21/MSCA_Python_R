@@ -1,0 +1,74 @@
+---
+title: "Navarro_Assignment3_b"
+author: "John Navarro"
+date: "January 28, 2017"
+output: pdf_document
+---
+
+# 1. Split the sample into two random samples. Standardize the data
+```{r}
+#Load the German data
+#germanCredit<- read.csv("C:/Users/JohntheGreat/Documents/MSCA/DataMining/Week1/german_credit.csv", header=TRUE, sep=",")
+library(caret)
+data(GermanCredit)
+head(GermanCredit)
+# select only the chosen variables
+GCD<- GermanCredit[, c(1:7)]
+#colnames(GCD)
+#summary(GCD)
+# need to split the data into train/test portions
+set.seed(555)
+train_ind <- sample(seq_len(nrow(GCD)), size = 700)
+# separate into two data frames: train and test
+train_data <- GCD[train_ind, ]
+test_data<- GCD[-train_ind, ]
+head(train_data)
+head(test_data)
+#standardize train_data
+train_means = colMeans(train_data)
+train_sd = apply(train_data, 2, sd)
+train_scaled = scale(train_data)
+head(train_scaled)
+test_scaled = scale(test_data, center=train_means, scale = train_sd)
+head(test_scaled)
+```
+
+# 2. Perform principal components of variables 1:7 on the training sample
+
+```{r}
+pr.cr <- prcomp(train_scaled)
+summary(pr.cr)
+attributes(pr.cr)
+pr.cr
+#Loadings/coefficients
+round(pr.cr$rotation,2)
+#components
+round(head(pr.cr$x),2)
+
+```
+
+# 3. Generate Scree Plots and select the number of components to retain
+```{r}
+plot(pr.cr$sdev^2, ylab= "Variances", type='b')
+#Variance Explained
+pr.var <- pr.cr$sdev ^2
+pve <- pr.var/sum(pr.var)
+plot(pve, xlab="Principal Component", ylab="Proportion of Variance Explained ", ylim=c(0,0.3), type = "b")
+plot(cumsum(pve), xlab="Principal Component ", ylab=" Cumulative Proportion of Variance Explained ", ylim=c(0,1), type = "b")
+```
+
+# 4. Plot Component 1 loadings vs Component 2 loadings
+
+```{r}
+plot(x=pr.cr$rotation[, 1], y=pr.cr$rotation[, 2], xlab='PC1 Loadings', ylab='PC2 Loadings', main = 'PC1 v PC2')
+plot(x=pr.cr$rotation[, 1], y=pr.cr$rotation[, 3], xlab='PC1 Loadings', ylab='PC3 Loadings', main = 'PC1 v PC3')
+plot(x=pr.cr$rotation[, 1], y=pr.cr$rotation[, 4], xlab='PC1 Loadings', ylab='PC4 Loadings', main = 'PC1 v PC4')
+```
+
+
+((needs to be completed)
+
+
+# 5. Show that the Loadings are orthogonal
+
+

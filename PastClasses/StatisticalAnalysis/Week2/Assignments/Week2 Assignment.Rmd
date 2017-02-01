@@ -1,0 +1,357 @@
+---
+title: "Week 2 Assignment"
+output: pdf_document
+name: John Navarro
+---
+#John Navarro#
+
+##Part 1. Generate uniformly distributed random numbers
+#1.1 Use runif()
+
+```{r}
+##set specific seed, use runif() to create a sample of 0s and 1s with 1000
+##datapoints
+set.seed(15)
+Sample<-runif(1000,0,1)
+```
+
+#1.2 Simulate Uniform Random Sample on [0,1] Using Random.org
+
+```{r}
+##install random package, set nFlips to 1000, use randomNumbers() function to
+##create data set dataFromRandom, which is a series of 0s and 1s. print the 
+##first 6 items in the dataset
+library(random)
+nFlips<-1000
+dataFromRandom<-randomNumbers(n=nFlips, min=0, max=1, col=1, base=2, check=TRUE)
+head(dataFromRandom)
+```
+
+Learn how to turn your sequence of {0,1} into uniform random numbers on [0,1]
+```{r}
+##install compositions package
+suppressMessages(library(compositions))
+##create a function called bin2dec that takes the input Bin.Seq, removes the 
+##"," and uses function unbinary() to turn the string into a number
+bin2dec<-function(Bin.Seq){
+  unbinary(paste(Bin.Seq,collapse=""))  
+}
+bin2dec(c(1,1,1,1,1,0))
+```
+
+Turn the sequence of zeros and ones dataFromRandom of length 1000 into a matrix with 10 columns and 100 rows
+```{r}
+##Create a matrix of 10 col and 100 rows
+Binary.matrix<-matrix(dataFromRandom,ncol=10)
+head(Binary.matrix)
+```
+
+Transform each row of the matrix into decimal format using bin2dec() and divide the numbers by 2^10 to make real numbers in [0,1]
+```{r}
+##Use bin2dec() on each row and divide the values by 2^100 to get 100 decimal 
+##values
+Decimal.Sample<-apply(Binary.matrix,1,bin2dec)/2^10
+Decimal.Sample
+```
+
+##Part 2. Test random number generator
+
+#2.1 Test uniformity of distribution of both random number generators
+
+2.1.1. Sample obtained by runif()
+
+Analyze what was simulated by first looking at the histogram.
+```{r}
+##plot a histogram of Sample, the data from runif()
+Sample.histogram<-hist(Sample)
+Sample.histogram
+```
+
+*What does the histogram tell you about the distribution? Is it consistent with the goal of simulation?*
+This histogram is a uniform distribution. Yes, it is consistent with the goal of the simulation. Which was to create a random uniform set of 1000 points all between 0 and 1.
+
+Estimate mean and standard deviation of Sample.histogram$density.
+
+```{r}
+##find the mean and sd of the sample$density
+(Sample.histogram.mean<-mean(Sample.histogram$density))
+(Sample.histogram.sd<-sd(Sample.histogram$density))
+##plot the histogram showing density not frequency
+plot(Sample.histogram,freq=FALSE)
+##draw the lines for the mean and the 95% Conf Intv
+abline(h=Sample.histogram.mean)
+abline(h=Sample.histogram.mean+1.96*Sample.histogram.sd,col="red",lty=2)
+abline(h=Sample.histogram.mean-1.96*Sample.histogram.sd,col="red",lty=2)
+```
+
+*What does the graph tell you about the observed distribution?*
+
+It looks like a uniform distribution with mean of 1 and a standard deviation of 0.0868
+
+```{r}
+##Find the mean and variance of the Sample
+(Sample.mean<-mean(Sample))
+(Sample.variance<-var(Sample))
+```
+
+*What do you conclude about the estimated distribution from the moments?*
+
+The mean of Sample is 0.516 and the variance is 0.0841 so most of the data is centered around 0.5 with a narrow variance.
+
+Check the summary of the simulated sample.
+```{r}
+#run the summary of the sample
+summary(Sample)
+```
+*What do you think is the best way of estimating uniform distribution over unknown interval?*
+The best way to estimate uniform distribution is by analyzing the moments.
+
+2.1.2. Repeat the same steps to test uniformity of the sample created from Random.org data.
+```{r}
+##plot a histogram using the decimal values from bin2dec() function
+D.Sample.histogram<-hist(Decimal.Sample)
+D.Sample.histogram
+#Calculate the mean and sd of histogram$density
+(D.Sample.histogram.mean<-mean(D.Sample.histogram$density))
+(D.Sample.histogram.sd<-sd(D.Sample.histogram$density))
+##plot the histogram with density, not frequency
+plot(D.Sample.histogram,freq=FALSE)
+##plot the mean and Conf Intv
+abline(h=D.Sample.histogram.mean)
+abline(h=D.Sample.histogram.mean+1.96*D.Sample.histogram.sd,col="red",lty=2)
+abline(h=D.Sample.histogram.mean-1.96*D.Sample.histogram.sd,col="red",lty=2)
+##Calculate the mean, variance and summary of the sample
+(D.Sample.mean<-mean(Decimal.Sample))
+(D.Sample.variance<-var(Decimal.Sample))
+summary(Decimal.Sample)
+```
+*What does the histogram tell you about the distribution? Is it consistent with the goal of simulation?*
+That the distribution is not uniform, It looks as if the mode is around 0.2. It does not seem consistent with the goal of the simulation.
+*What does the graph tell you about the observed distribution?*
+It says that the density has a mean of 1, but a wide confidence interval, due to the large standard deviation.
+*What do you conclude about the estimated distribution from the moments?*
+This distribution has a similar mean, but a larger variance. It still gives a uniform distribution.
+*What do you think is the best way of estimating uniform distribution over unknown interval?*
+
+The best way to estimate uniform distribution is by analyzing the moments.
+
+#2.2. Test independence of the sequence of zeros and ones
+2.2.1. Turning point test
+```{r}
+##install randtests package, run turning.point.test() on decimal.sample
+library(randtests)
+turning.point.test(Decimal.Sample)
+```
+
+2.3. Test frequency by Monobit test
+
+```{r}
+##transorm data of {0,1} to {-1,1}
+dataFromRandom.plusminus1<-(dataFromRandom-.5)*2
+##create 2 complimentary functions erf and erfc, that 
+erf <- function(x) 2 * pnorm(x * sqrt(2)) - 1
+erfc <- function(x) 2 * pnorm(x * sqrt(2), lower = FALSE)
+##plot the erfc
+plot(seq(from=-3,to=3,by=.05),erfc(seq(from=-3,to=3,by=.05)),type="l",xlab="x",ylab="erfc(x")
+```
+To test the sequence RiRi check the value erfc(S).
+
+If the P-value or erfc(S) is less or equal than 0.01 the sequence fails the test.
+```{r}
+##Sum the rows, and take absolute value and divide by 100 to get decimal
+##Use erfc, to get the pvalues of the sub-sequences
+##see which ones are less than 0.01 and sum the true ones
+erfc(abs(sum(dataFromRandom.plusminus1)/sqrt(2*nFlips)))
+```
+
+The test shows that our sequence passes.
+
+Now check each of the sub-sequences created earlier:
+```{r}
+plot(erfc(abs(apply(matrix(dataFromRandom.plusminus1,ncol=50),1,sum))/sqrt(2*50)),ylab="P-values of 20 runs")
+
+```
+
+*How many runs out of 20 fail the test?*
+
+```{r}
+
+sum(erfc(abs(apply(matrix(dataFromRandom.plusminus1,ncol=50),1,sum))/sqrt(2*50))<=.01)
+
+
+```
+
+None of them fail, there are none less than 0.01
+
+##Part 3. Invent a random number generator
+Think about possible sources of true or pseudo-random sequences of {0,1} and choose one or two of them.
+Conduct the tests described in the previous section.
+
+#3.1 Description of your random number generator
+My sequence is taken from a MLB pitcher (Jake Arrieta) career statistics for walks and strikeouts per game. For each game I tabulated a ratio of walks divided by strikeouts, and removed the NA values(for when he had zero strikeouts) as well as the values greater than 1 for when he had more walks than strikeouts. We are left with 128 datapoints between 0 and 1.
+
+#3.2 Generated sequence
+```{r}
+##read in the data
+setwd("C:/Users/JohntheGreat/Documents/MSCA/StatisticalAnalysis/Week2/Assignments")
+ratio <- read.csv(file = "ArrietaRatio.csv", header = F)
+bbk.ratio <- ratio$V3
+head(bbk.ratio)
+```
+
+
+#3.3 Uniformity test
+
+```{r}
+## plot a histogram of bbk,ratio
+bbk.ratio.histogram<-hist(bbk.ratio)
+bbk.ratio.histogram
+##calc the mean and sd of the density
+(bbk.ratio.histogram.mean<-mean(bbk.ratio.histogram$density))
+(bbk.ratio.histogram.sd<-sd(bbk.ratio.histogram$density))
+##plot the histogram and the mean and CI 
+plot(bbk.ratio.histogram,freq=FALSE)
+abline(h=bbk.ratio.histogram.mean)
+abline(h=bbk.ratio.histogram.mean+1.96*bbk.ratio.histogram.sd,col="red",lty=2)
+abline(h=bbk.ratio.histogram.mean-1.96*bbk.ratio.histogram.sd,col="red",lty=2)
+##Calc the mean, variance and summary of bbk.ratio
+(bbk.ratio.mean<-mean(bbk.ratio))
+(bbk.ratio.variance<-var(bbk.ratio))
+summary(bbk.ratio)
+```
+*What does the histogram tell you about the distribution? Is it consistent with the goal of simulation?*
+The distribution is not uniform, it looks like the frequencies are high for low values, and low for the values between 0.5 and 1.
+
+*What does the graph tell you about the observed distribution?*
+It tells me that the variance of the densities are large, especially none of the data falls withing the confidence interval.
+
+*What do you conclude about the estimated distribution from the moments?*
+It tells me that that mean is at 0.42, and not close to 0.50. Most of the data is under 0.50
+
+*What do you think is the best way of estimating uniform distribution over unknown interval?*
+The best way to estimate uniform distribution is by analyzing the moments.
+
+#3.4 frequency test
+
+```{r}
+library(compositions)
+##use binary to convert bbk.ratio to binary values
+bbk.bin <- binary(bbk.ratio * 100)
+##paste all values to form a string of 0s and 1s
+##split all the characters and turn them into numerics
+bbk.sample <- as.numeric(unlist(strsplit(paste(bbk.bin, collapse = ""), split="")))
+##turn the 0s and 1s to +/-1s
+bbk.bin.plusminus1 <- (bbk.sample - .5)*2
+
+erf <- function(x) 2 * pnorm(x * sqrt(2)) - 1
+erfc <- function(x) 2 * pnorm(x * sqrt(2), lower = FALSE)
+
+plot(seq(from=-3,to=3,by=.05),erfc(seq(from=-3,to=3,by=.05)),type="l",xlab="x",ylab="erfc(x")
+
+erfc(abs(sum(bbk.bin.plusminus1)/sqrt(2*nFlips)))
+
+```
+Since the Pvalue is less than 0.01, by a signifcant amount, this sequence fails the test and is not random.
+```{r}
+
+##I only have 896 data points, so I used a matrix with 28 columns and 32 rows. 
+plot(erfc(abs(apply(matrix(bbk.bin.plusminus1,ncol=28),1,sum))/sqrt(2*250)),ylab="P-values of 32 runs")
+##Sum the rows, and take absolute value and divide by 100 to get decimal
+##Use erfc, to get the pvalues of the sub-sequences
+##see which ones are less than 0.01 and sum the true ones
+sum(erfc(abs(apply(matrix(bbk.bin.plusminus1,ncol=28),1,sum))/sqrt(2*50))<=.01)
+```
+None of the sub sequences are less than 0.01
+
+#3.5 Turning point test
+
+```{r}
+##install randtests package, run turning.point.test() on decimal.sample
+library(randtests)
+turning.point.test(bbk.ratio)
+```
+
+##Part 4. Monte Carlo Method
+
+#4.1. Scratch off quote of the day: function download
+```{r}
+##load the file
+datapath<-"C:/Users/JohntheGreat/Downloads/documents%2FMScA Statistical Analysis 31007%2FMScA 31007 Lecture 2%2FScratchOffMonteCarlo (1).rda/"
+#load(file=paste(datapath,'ScratchOffMonteCarlo.rda',sep='/'))
+
+##load(file = datapath)
+load("C:/Users/JohntheGreat/Downloads/documents%2FMScA Statistical Analysis 31007%2FMScA 31007 Lecture 2%2FScratchOffMonteCarlo.rda")
+```
+
+#4.2. Simulate pseudo-random poins [x,y][x,y] on [0,100]×[0,100]
+
+Select a number o points nSample.
+
+Simulate a sample of length 2*nSample from uniform distribution on [0,100] and turn it into a (nSample×2)(nSample×2) matrix.
+Use a seed of your choice my.seed.
+```{r}
+##Set sample and seed, use runif to create random values from 0 to 100 and put 
+##into a matrix with two columns
+nSample <- 20000
+my.seed <- 5555
+set.seed(my.seed)
+xy<-runif(2*nSample,0,100)
+xy<-matrix(xy,ncol=2)
+head(xy)
+```
+
+Throw nSample simulated points on square [0,100]×[0,100][0,100]×[0,100] to scratch off some of yellow paint.
+```{r}
+##run scratchoff function using the matrix xy
+ScratchOffMonteCarlo(xy)
+```
+Take a note of the percentage scratched off returned by ScratchOffMonteCarlo(xy)
+
+*By changing nSample and my.seed try to make the quote of the day readable with minimum sample size.
+What percent you needed to scratch off to make the quote readable?*
+
+I needed over 86% to make the quote readable, which was nSample <- 20000
+
+##4.3. Simulate quasi-random poins [x,y][x,y] on [0,100]×[0,100]
+
+```{r}
+##install randtoolbox package
+library(randtoolbox)
+```
+Run sobol() first time with the default set for parameter init=T.
+```{r}
+##set seed and nsample
+my.seed<-6565
+set.seed(my.seed)
+nSample<-10
+## use sobol function to create a 2 column matrix with 10 rows
+xy<-sobol(nSample,dim=2,init=T)*100
+```
+
+Then make init=F if you want to generate different sample every time or keep it equal to T if you want repeated samples.
+
+```{r}
+##run using a different seed and sample
+my.seed<-123
+nSample<-13000
+xy<-sobol(nSample,dim=2,init=T,scrambling = T,seed=my.seed)*100
+##Plot the data pairs and run ScratchOffMonteCarlo
+plot(xy)
+ScratchOffMonteCarlo(xy)
+```
+
+*Again, by changing nSample and my.seed try to make the quote of the day readable with minimum sample size.*
+*What percent you needed to scratch off to make the quote readable?*
+Again, I needed about 86% open to make it readable
+
+*Which of the Monte Carlo methods makes the quote readable sooner?*
+The Sobol method was able to reach a readable percentage with a smaller nSample size
+
+*Which parameters nSample and my.seed gave you the best result, what percent of the yellow paing you were able to scratch off by each method?*
+For runif(), I used my.seed <- 5555 with nSample <- 20000
+For Sobol, I used my.seed <- 123 with nSample <- 13000
+Both got the percent open to around 86%
+*Changing which of the two parameters plays more significant role?*
+Changing nSample played a more significant role.
+
+

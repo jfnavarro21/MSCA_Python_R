@@ -1,0 +1,67 @@
+---
+title: "Week2AssignmentPart3"
+output: pdf_document
+---
+
+##Part 3. Invent a random number generator
+Think about possible sources of true or pseudo-random sequences of {0,1} and choose one or two of them.
+Conduct the tests described in the previous section.
+
+#Part1 Description of your random number generator
+My sequence is taken from a MLB pitcher (Jake Arrieta) career statistics for walks and strikeouts per game. For each game I tabulated a ratio of walks divided by strikeouts, and removed the NA values(for when he had zero strikeouts) as well as the values greater than 1 for when he had more walks than strikeouts. We are left with 128 datapoints between 0 and 1.
+
+#Part2 Generated sequence
+```{r}
+setwd("C:/Users/JohntheGreat/Documents/MSCA/StatisticalAnalysis/Week2/Assignments")
+ratio <- read.csv(file = "ArrietaRatio.csv", header = F)
+bbk.ratio <- ratio$V3
+head(bbk.ratio)
+```
+
+
+#Part3 Uniformity test
+
+```{r}
+bbk.ratio.histogram<-hist(bbk.ratio)
+bbk.ratio.histogram
+(bbk.ratio.histogram.mean<-mean(bbk.ratio.histogram$density))
+(bbk.ratio.histogram.sd<-sd(bbk.ratio.histogram$density))
+plot(bbk.ratio.histogram,freq=FALSE)
+abline(h=bbk.ratio.histogram.mean)
+abline(h=bbk.ratio.histogram.mean+1.96*bbk.ratio.histogram.sd,col="red",lty=2)
+abline(h=bbk.ratio.histogram.mean-1.96*bbk.ratio.histogram.sd,col="red",lty=2)
+(bbk.ratio.mean<-mean(bbk.ratio))
+(bbk.ratio.variance<-var(bbk.ratio))
+summary(bbk.ratio)
+```
+
+#Part4 frequency test
+
+```{r}
+##convert bbk.ratio to binary sample bbk.bin
+##For now, use runif for set of {0,1}
+nFlips <- 1000
+set.seed(15)
+bbk.bin<-runif(1000,0,1)
+
+bbk.bin.plusminus1 <- (bbk.bin - .5)*2
+
+erf <- function(x) 2 * pnorm(x * sqrt(2)) - 1
+erfc <- function(x) 2 * pnorm(x * sqrt(2), lower = FALSE)
+
+plot(seq(from=-3,to=3,by=.05),erfc(seq(from=-3,to=3,by=.05)),type="l",xlab="x",ylab="erfc(x")
+
+erfc(abs(sum(bbk.bin.plusminus1)/sqrt(2*nFlips)))
+
+plot(erfc(abs(apply(matrix(bbk.bin.plusminus1,ncol=50),1,sum))/sqrt(2*50)),ylab="P-values of 20 runs")
+
+sum(erfc(abs(apply(matrix(bbk.bin.plusminus1,ncol=50),1,sum))/sqrt(2*50))<=.01)
+```
+
+#Part5 Turning point test
+
+```{r}
+library(randtests)
+turning.point.test(bbk.ratio)
+```
+

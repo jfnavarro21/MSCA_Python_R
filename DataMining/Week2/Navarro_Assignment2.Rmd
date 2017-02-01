@@ -1,0 +1,270 @@
+---
+title: "Navarro_Assignment_2"
+author: "John Navarro"
+date: "January 16, 2017"
+output: pdf_document
+
+---
+komeans code from Anil
+```{r}
+fun.okc.2= function (data = data, nclust = nclust, lnorm = lnorm, tolerance = tolerance) 
+{
+    M = nrow(data)
+    N = ncol(data)
+    K = nclust
+    niterations = 50
+#    datanorm = apply(data, 2, fun.normalize)
+    datanorm = scale(data)
+    S = matrix(sample(c(0, 1), M * K, replace = TRUE), M, K)
+    S = cbind(S, rep(1, M))
+    W = matrix(runif(N * K), K, N)
+    W = rbind(W, rep(0, N))
+    sse = rep(0, niterations)
+    oprevse = exp(70)
+    opercentse = 1
+    i = 1
+    while ((i <= niterations) & (opercentse > tolerance)) {
+        for (k in 1:K) {
+            sminusk = S[, -k]
+            wminusk = W[-k, ]
+            s = as.matrix(S[, k])
+            w = t(as.matrix(W[k, ]))
+            dstar = datanorm - sminusk %*% wminusk
+            prevse = exp(70)
+            percentse = 1
+            l = 1
+            while ((l <= niterations) & (percentse > tolerance)) {
+                for (m in 1:N) {
+                  if (lnorm == 2) {
+                    w[1, m] = mean(dstar[s == 1, m], na.rm = TRUE)
+                  }
+                  if (lnorm == 1) {
+                    w[1, m] = median(dstar[s == 1, m], na.rm = TRUE)
+                  }
+                }
+                for (m in 1:M) {
+                  if (lnorm == 2) {
+                    ss1 = sum((dstar[m, ] - w[1, ])^2, na.rm = TRUE)
+                    ss0 = sum((dstar[m, ])^2, na.rm = TRUE)
+                  }
+                  if (lnorm == 1) {
+                    ss1 = sum(abs(dstar[m, ] - w[1, ]), na.rm = TRUE)
+                    ss0 = sum(abs(dstar[m, ]), na.rm = TRUE)
+                  }
+                  if (ss1 <= ss0) {
+                    s[m, 1] = 1
+                  }
+                  if (ss1 > ss0) {
+                    s[m, 1] = 0
+                  }
+                }
+                if (sum(s) == 0) {
+                  s[sample(1:length(s), 2)] = 1
+                }
+                if (lnorm == 2) {
+                  se = sum((dstar - s %*% w)^2, na.rm = TRUE)
+                }
+                if (lnorm == 1) {
+                  se = sum(abs(dstar - s %*% w), na.rm = TRUE)
+                }
+                percentse = 1 - se/prevse
+                prevse = se
+                l = l + 1
+            }
+            S[, k] = as.vector(s)
+            W[k, ] = as.vector(w)
+        }
+        if (lnorm == 2) 
+            sse[i] = sum((datanorm - S %*% W)^2, na.rm = TRUE)/sum((datanorm - 
+                mean(datanorm, na.rm = TRUE))^2, na.rm = TRUE)
+        if (lnorm == 1) 
+            sse[i] = sum(abs(datanorm - S %*% W), na.rm = TRUE)/sum(abs(datanorm - 
+                median(datanorm, na.rm = TRUE)), na.rm = TRUE)
+        if (lnorm == 2) {
+            ose = sum((datanorm - S %*% W)^2, na.rm = TRUE)
+        }
+        if (lnorm == 1) {
+            ose = sum(abs(datanorm - S %*% W), na.rm = TRUE)
+        }
+        opercentse = (oprevse - ose)/oprevse
+        oprevse = ose
+        i = i + 1
+    }
+    if (lnorm == 2) 
+        vaf = cor(as.vector(datanorm), as.vector(S %*% W), use = "complete.obs")^2
+    if (lnorm == 1) 
+        vaf = 1 - sse[i - 1]
+     rrr = list(Data = data, Normalized.Data = datanorm, Tolerance = tolerance, 
+        Groups = S[, 1:K], Centroids = round(W[1:K, ], 2), SSE.Percent = sse[1:i - 
+            1], VAF = vaf)
+
+
+    return(rrr)
+}
+
+komeans=function (data = data, nclust = nclust, lnorm = lnorm, nloops = nloops, tolerance = tolerance, seed = seed) 
+{
+    prevsse = 100
+    set.seed(seed)
+    for (i in 1:nloops) {
+        z = fun.okc.2(data = data, nclust = nclust, lnorm = lnorm, 
+            tolerance = tolerance)
+        if (z$SSE.Percent[length(z$SSE.Percent[z$SSE.Percent >  0])] < prevsse) {
+            prevsse = z$SSE.Percent[length(z$SSE.Percent[z$SSE.Percent >  0])]
+            ind = i
+            z.old = z
+        }
+    }
+    return(list(data = z.old$Data, Normalized.Data = z.old$Normalized.Data, 
+        Group = z.old$Group %*% as.matrix(2^(0:(nclust-1)) ), Centroids = z.old$Centroids, Tolerance = z.old$Tolerance, 
+        SSE.Pecent = z.old$SSE.Percent, VAF = z.old$VAF, iteration = ind, 
+        seed = seed))
+}
+```
+
+# 1. Select the numeric variables that you think are appropriate and useful
+```{r}
+#Load the German data
+AssignmentData<- read.csv("C:/Users/JohntheGreat/Documents/MSCA/DataMining/germandata.csv", header=FALSE, sep=" ")
+head(AssignmentData)
+```
+
+The problem is to cluster the participants in the German credit study. Due to the difficulty with clustering and categorical data. I am choosing to only consider the numeric categories. 
+```{r}
+num.cat <- AssignmentData[,c(2,5,8,11,13,16,18)]
+head (num.cat)
+cor(num.cat)
+```
+After looking at the 7 numeric variables, I believe that the following attributes are most appropriate:
+5 - Credit Amount (numerical)
+8 - Installment rate in percentage of disposable income(numerical)
+11 - Present residence since(numerical)
+13 - Age (numerical)
+
+# 2. Use kmeans and komeans
+# 3. Generate the K-means solution. 
+```{r}
+#scale the data
+attributes <- AssignmentData[, c(5, 8, 11, 13)]
+scaled_attributes <- scale(attributes)
+head(scaled_attributes)
+
+# need to split the data into train/test portions
+set.seed(555)
+train_ind <- sample(seq_len(nrow(scaled_attributes)), size = 700)
+# separate into two data frames: train and test
+train_data <- scaled_attributes[train_ind, ]
+test_data<- scaled_attributes[-train_ind, ]
+```
+
+Extract 2-10 k-means clusters using the variable set. Present the VAF. Run them from at least 50-100 random starts
+```{r}
+#create VAF.vector where VAF's will be stored
+VAF.vector <- numeric(0)
+#set the seed for reproducability
+set.seed(202)
+# Use a for loop to extract the VAF for each number of clusters
+for (i in 2:10){
+  km.output <- kmeans(train_data, centers=i, nstart=50)
+  VAF.vector[i-1] <- km.output$betweenss/km.output$totss 
+}  
+print(VAF.vector)
+
+```
+# 4. Perform Scree tests to choose appropriate number of k-means clusters
+# 5. Show the scree plot
+```{r}
+plot(c(2:10), VAF.vector, xlab = 'Number of Clusters', ylab = 'VAF', type= "l", main='Scree plot')
+```
+# 6. Choose 1 K-means solution to retain
+
+# 6a. Use the Criteria of VAF
+
+Based on this plot, there appears to be a bend in at either 5 or 6 clusters. Since these are high numbers to separate the customer base into, I will go with the lesser of the two. Going forward I will investigate using 5 clusters.
+
+# 6b. Interpretability of the segments
+
+We can look at the centers of the 5 clusters to describe our 5 segments
+
+```{r}
+km.output.5 <- kmeans(train_data, centers=5, nstart=50)
+km.output.5$centers
+```
+Cluster 1 is a younger person with an above average residence rate who has a high rate on an small loan amount. Cluster 2 is an average aged person with a average residence length who has a low rate on a very high loan amount. Cluster 3 is a younger person with a very short residence rate who has a moderately high rate on a below average loan amount. Cluster 4 is an elderly person with a long residence who has an above average rate on a below average loan amount. Cluster 5 is a younger person with a long residence length who has a verylow rate on an average loan amount.
+
+These clustered segments all seem to be separate groups of people with different traits. The 2 that seem to be closest together are clusters 1 and 3 which both have young people with moderately high rates on low loan amounts, the only difference is the length of residence, but in that regard, the two groups are very different.
+
+# 6c. Performance of the holdout
+```{r}
+TestCluster <- kmeans(test_data, centers=km.output.5$centers)
+TestVAF <- TestCluster$betweenss/TestCluster$totss
+TestClustersizes <- TestCluster$size
+print(c(VAF.vector[4], TestVAF))
+TrainClustersizes <- km.output.5$size
+scaled.train <- scale(TrainClustersizes)
+print(scaled.train[1:5])
+scaled.test <- scale(TestClustersizes)
+print(scaled.test[1:5])
+```
+It appears that the VAFs are close in both the train and the test set. Since the two sets are different sizes, I scaled each of the cluster sizes. They seem similarly sized, the only difference is cluster 4, which seems to be slightly bigger in the training set than the test set.
+
+# 7. Generate 3-5 komeans clusters on the training data
+
+```{r}
+ko.output.3 <- komeans(data=train_data, nclust=3, lnorm=2, nloops=100, tolerance=0.001, seed=5)
+ko.output.4 <- komeans(data=train_data, nclust=4, lnorm=2, nloops=100, tolerance=0.001, seed=5)
+ko.output.5 <- komeans(data=train_data, nclust=5, lnorm=2, nloops=100, tolerance=0.001, seed=5)
+ko.VAF.5 <- ko.output.5$VAF
+ko.VAF.4 <- ko.output.4$VAF
+```
+
+# 8. Compare the chosen k-means solution with a komeans solution
+
+Since I used 5 clusters for the k-means solution, we will compare that with the 5 cluster solution from komeans. We will compare cluster centroids
+```{r}
+#Create the table
+table(km.output.5$cluster, ko.output.5$Group)
+#Choose the 5 largest clusters. 21/3 = 102, 19/1 = 64, 22/4 = 51, 3/5 = 49, 5/5 = 48
+# use apply to take the mean of the ko cluster groups
+ko.5.groupmeans.1 <- apply(train_data[ko.output.5$Group == 21,], 2, mean)
+ko.5.groupmeans.2 <- apply(train_data[ko.output.5$Group == 19,], 2, mean)
+ko.5.groupmeans.3 <- apply(train_data[ko.output.5$Group == 22,], 2, mean)
+ko.5.groupmeans.4 <- apply(train_data[ko.output.5$Group == 3,], 2, mean)
+ko.5.groupmeans.5 <- apply(train_data[ko.output.5$Group == 5,], 2, mean)
+
+print(ko.5.groupmeans.1)
+print(ko.5.groupmeans.2)
+print(ko.5.groupmeans.3)
+print(ko.5.groupmeans.4)
+print(ko.5.groupmeans.5)
+```
+It seems like the results are different. The kmeans VAF is lower than the komeans VAF. Additionally, the komeans algorithm has identified different centroids than the results from the kmeans calculations.
+
+# 9.  Summarize and Interpret the results and segments
+
+Here are demographic descriptions of the 5 segments that Komeans has created:
+
+Cluster 1 is young with a very short residence time who has a high rate on a below average sized loan. Cluster 2 is a very young person who has a long residence length with a high rate on a below average sized loan. Cluster 3 is a very old person with a long residence who has a high rate on a small loan. Cluster 4 is a very young person with long residence who has a very low rate on an average sized loan. Cluster 5 is a young person with a very short residence who has a very low rate on a small loan.
+
+Here are the deomgraphic descriptions of the 5 segments that Kmeans has created:
+
+Cluster 1 is a younger person with an above average residence rate who has a high rate on an small loan amount. Cluster 2 is an average aged person with a average residence length who has a low rate on a very high loan amount. Cluster 3 is a younger person with a very short residence rate who has a moderately high rate on a below average loan amount. Cluster 4 is an elderly person with a long residence who has an above average rate on a below average loan amount. Cluster 5 is a younger person with a long residence length who has a verylow rate on an average loan amount.
+
+I would chose the Komeans segmentation method. It gives us a higher VAF, and the Clusters seem more distinct. Despite there being 4 groups with below average sized loans, they are differentiated by age and by residence length. 
+
+The kmeans method gives us a lower VAF. More importantly, the clusters don't differentiate as well. Kmeans cluster 3 and cluster 4 are both young customers with high rates on small loans. The only difference is group 3 has a short residence and group 4 has a long residence. This could be interpreted as similarly aged people with similar loans and maybe one group still lives at home with their parents (cluster 4) and the other group has recently moved out on their own (cluster 3).
+
+# 10 You are given the task of recruiting 30 people into these segments
+
+## a. What approach will you take to recruit people over the telephone?
+
+I will call them and give them a vague explanation of what the focus group is for so they are not biased. But I would incentivize them by making it a paid market study. I guess the elderly groups might require a free lunch as well, maybe some giveaways.
+
+## b. Assume consumers will be reimbursed, which of the consumers will you try to recruit?
+
+Regardless of the compensation, I would try to recruit consumers for all segments. I assume the lower income segments should fill up quicker than the higher income segments. Hopefully, they would be interested by the topic or by a free meal. Perhaps the higher income segments would be interested in a giveaway, like raffle tickets to a musical.
+
+## c. How will you identify if a new recruit belongs to a particular segment?
+
+I can sort the recruits by age, which would put them in 1 of 3 categories. Then by loan amount and rate, which would take them into 1 of 5 categories.
+

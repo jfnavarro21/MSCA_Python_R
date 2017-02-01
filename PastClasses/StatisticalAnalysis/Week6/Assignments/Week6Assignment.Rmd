@@ -1,0 +1,222 @@
+---
+title: 'Week 6: Logistic Regression'
+author: "John Navarro"
+date: "November 8, 2016"
+output: pdf_document
+---
+
+#1. Separate mixed samples of linear model data using logistic regression
+
+##1.1. Analyze the training sample
+
+```{r}
+##read file into LinearModel.Training, set nSample.Training, print head, plot the training sample
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/StatisticalAnalysis/Week6/Assignments"
+LinearModel.Training<-read.csv(file=paste(datapath,'ResidualAnalysisProjectData_1_Train.csv',sep="/"), header=TRUE,sep=",")
+nSample.Training<-length(LinearModel.Training[,1])
+head(LinearModel.Training)
+plot(LinearModel.Training[,1],LinearModel.Training[,2], type="p",pch=19)
+
+##Separate the models by using the 3rd column and plot the subsamples
+LinearModel.Training.1<-cbind(LinearModel.Training[,1],rep(NA,nSample.Training))
+LinearModel.Training.2<-cbind(LinearModel.Training[,1],rep(NA,nSample.Training))
+LinearModel.Training.1[LinearModel.Training[,3]*(1:nSample.Training),2]<-
+  LinearModel.Training[LinearModel.Training[,3]*(1:nSample.Training),2]
+LinearModel.Training.2[(1-LinearModel.Training[,3])*(1:nSample.Training),2]<-
+  LinearModel.Training[(1-LinearModel.Training[,3])*(1:nSample.Training),2]
+head(cbind(LinearModel.Training,
+           Training1=LinearModel.Training.1[,2],
+           Training2=LinearModel.Training.2[,2]))
+
+# Plot the subsamples
+matplot(LinearModel.Training[,1],cbind(LinearModel.Training.1[,2],LinearModel.Training.2[,2]),
+        pch=16,col=c("green","blue"),ylab="Subsamples of the training sample")
+
+##Estimate linear model for training sample, look at the output
+EstimatedLinearModel.Training <- lm(LinearModel.Training$Output ~ LinearModel.Training$Input)
+summary(EstimatedLinearModel.Training)$coefficients
+summary(EstimatedLinearModel.Training)$r.squared
+summary(EstimatedLinearModel.Training)$sigma
+
+```
+*Interpret the results in the output. Compare the results for the training sample and the main sample from previous week: coefficients, R2, ????.*
+The samples have similar intercepts, the main sample has a higher slope than the training sample. Both of these coefficients have Std errors that are similar. However for the training sample both coefficients are statistically different from zero, but in the main sample only the slope is significantly different from zero.
+
+Both models have similar R-squared values, close to 0.83. 
+The main sample has a higher Residual standard error as well as more degrees of freedom. 1.154 on 998 df vs 0.827 on 198 df.
+
+
+```{r}
+##Plot the residuals
+EstimatedResiduals.Training<-EstimatedLinearModel.Training$residuals
+plot(LinearModel.Training[,1],EstimatedResiduals.Training)
+##Separate the residuals by model and plot
+EstimatedResiduals.Training.1<-EstimatedResiduals.Training
+EstimatedResiduals.Training.2<-EstimatedResiduals.Training
+EstimatedResiduals.Training.1[(LinearModel.Training[,3]==0)*(1:nSample.Training)]<-NA
+EstimatedResiduals.Training.2[(LinearModel.Training[,3]==1)*(1:nSample.Training)]<-NA
+## Print first 10 rows
+head(cbind(AllResiduals=EstimatedResiduals.Training,
+      Training1Residuals=EstimatedResiduals.Training.1,
+      Training2Residuals=EstimatedResiduals.Training.2,
+      TrainingClass=LinearModel.Training[,3]))
+##Plot the residuals, separated by model
+# Plot the residuals corresponding to different models
+matplot(LinearModel.Training[,1],cbind(EstimatedResiduals.Training.1, EstimatedResiduals.Training.2),pch=16,col=c("green","blue"),ylab="Separated parts of the training sample")
+```
+*What do you think about best way to separate the samples of residuals?*
+Right now, it is hard to tell, since they overlap at this point. The pattern seems to be pretty symmetric. But I would guess logistic regression, since that is the topic of the week!
+
+##1.2. Logistic regression#
+```{r}
+Logistic.Model.Data<-data.frame(Logistic.Output=LinearModel.Training[,3], Logistic.Input=EstimatedResiduals.Training)
+LinearModel.Training.Logistic<-glm(Logistic.Output~Logistic.Input,data=Logistic.Model.Data, family=binomial(link=logit))
+summary(LinearModel.Training.Logistic)
+names(LinearModel.Training.Logistic)
+```
+*Interpret the summary of the model: what is the meaning and significance of coefficients.*
+The Intercept is B0, and the "slope" is B1 These are the two values that can be used in the function Y = B0 + B1X. B0 gives a fitted probability when X=0. B1 is a multiplier on the log odds of success. A 1 unit change in X will increase log odds by e^B1
+
+```{r}
+Predicted.Probabilities.Training<-predict(LinearModel.Training.Logistic,type="response")
+plot(LinearModel.Training[,1],Predicted.Probabilities.Training)
+```
+*How can we use this graph? What does it tell us?*
+We can  use this graph to confirm that logistic regression is predicting the residual probabilities properly.
+This graph is telling us the predicted probabilities from x using the B0 and B1s given from the logistic regression. The predict function is giving us the probabilities using the formula p = (e^(B0+B1X))/(1+e^(B0+B1))
+```{r}
+##Create the unscrambling sequence
+Unscrambling.Sequence.Training.Logistic<-
+  (predict(LinearModel.Training.Logistic,type="response")>.5)*1
+##Create classified residuals
+ClassifiedResiduals.Training.1<-EstimatedResiduals.Training
+ClassifiedResiduals.Training.2<-EstimatedResiduals.Training
+ClassifiedResiduals.Training.1[(Unscrambling.Sequence.Training.Logistic==0)*(1:nSample.Training)]<-NA
+ClassifiedResiduals.Training.2[(Unscrambling.Sequence.Training.Logistic==1)*(1:nSample.Training)]<-NA
+head(cbind(AllTraining=EstimatedResiduals.Training,
+           Training1=ClassifiedResiduals.Training.1,
+           Training2=ClassifiedResiduals.Training.2))
+##Plot both classes of the residuals
+matplot(LinearModel.Training[,1],cbind(ClassifiedResiduals.Training.1,
+                                       ClassifiedResiduals.Training.2),
+        pch=16,col=c("green","blue"),ylab="Classified residuals, X-axis at 0")
+axis(1,pos=0)
+```
+*Recall what classification rule we used in the previous assignment with these data?*
+We used the difference in parabola slope.
+*What is the classification rule estimated by logistic regression?*
+We used p=0.5 which will give us  X = (-B0/B1)
+```{r}
+##Calculate classification boundary for the models using estimated coefficients of logistic regression.
+##We can use the two coefficients B0 and B1 to find the classification boundary. 
+Classification.Rule.Logistic <- -summary(LinearModel.Training.Logistic)$coefficients[1]/summary(LinearModel.Training.Logistic)$coefficients[2]
+
+
+##Plot the data using the Classification.Rule.Logistic
+matplot(LinearModel.Training[,1],cbind(ClassifiedResiduals.Training.1,
+                                       ClassifiedResiduals.Training.2),
+        pch=16,col=c("green","blue"),ylab="Classified residuals, X-axis at the rule level")
+axis(1,pos=Classification.Rule.Logistic)
+```
+##1.3. Separate subsamples in the main sample using the classifier trained on the training sample#
+```{r}
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/StatisticalAnalysis/Week6/Assignments"
+LinearModel<-read.csv(file=paste(datapath,'ResidualAnalysisProjectData_1.csv',sep="/"),header=TRUE,sep=",")
+nSample<-length(LinearModel[,1])
+head(LinearModel)
+##Estimate Linear Model
+EstimatedLinearModel<-lm(LinearModel[,2]~LinearModel[,1])
+EstimatedLinearModel$coefficients
+EstimatedResiduals<-EstimatedLinearModel$residuals
+plot(LinearModel[,1],EstimatedResiduals)
+Unscrambling.Sequence.Logistic<-(predict(LinearModel.Training.Logistic,
+                                         newdata=data.frame(Logistic.Output=EstimatedResiduals,
+                                                            Logistic.Input=EstimatedResiduals),
+                                         type="response")>.5)*1
+Probability<-sum(Unscrambling.Sequence.Logistic)/length(Unscrambling.Sequence.Logistic)
+Probability
+binom.test(sum(Unscrambling.Sequence.Logistic),nSample,p = 0.5)
+```
+*What do you conclude based on the binomial test?*
+It appears that you cannot conclude that the probability is different from 0.5. since the p-value = 0.5067
+```{r}
+##Create classified residuals
+ClassifiedResiduals.1<-EstimatedResiduals
+ClassifiedResiduals.2<-EstimatedResiduals
+ClassifiedResiduals.1[(Unscrambling.Sequence.Logistic==0)*(1:nSample)]<-NA
+ClassifiedResiduals.2[(Unscrambling.Sequence.Logistic==1)*(1:nSample)]<-NA
+##Print first 10 rows to check
+cbind(EstimatedResiduals,ClassifiedResiduals.1,ClassifiedResiduals.2)[1:10,]
+# Plot both classes of the residuals
+matplot(LinearModel[,1],cbind(ClassifiedResiduals.1,
+                              ClassifiedResiduals.2),
+        pch=16,col=c("green","blue"),ylab="Classes of the main sample, X-axis at 0")
+axis(1,pos=0)
+##Plot with division using classification boundary
+matplot(LinearModel[,1],cbind(ClassifiedResiduals.1,ClassifiedResiduals.2),
+        pch=16,col=c("green","blue"),ylab="Classes of the main sample, X-axis at the rule level")
+axis(1,pos=Classification.Rule.Logistic)
+
+# Create recovered models
+LinearModel1.Recovered<-LinearModel
+LinearModel2.Recovered<-LinearModel
+LinearModel1.Recovered[(1-Unscrambling.Sequence.Logistic)*(1:nSample),2]<-NA
+LinearModel2.Recovered[Unscrambling.Sequence.Logistic*(1:nSample),2]<-NA
+# Print the first 1 rows of scrambled and unscrambled samples
+cbind(LinearModel,LinearModel1.Recovered,LinearModel2.Recovered)[1:10,]
+# Plot the unscrambled subsamples
+matplot(LinearModel[,1],cbind(LinearModel1.Recovered[,2],LinearModel2.Recovered[,2]), type="p",col=c("green","blue"),pch=19,ylab="Separated Subsamples")
+##Estimate linear models for the subsamples
+LinearModel1.Recovered.lm<-lm(LinearModel1.Recovered[,2]~LinearModel1.Recovered[,1])
+LinearModel2.Recovered.lm<-lm(LinearModel2.Recovered[,2]~LinearModel2.Recovered[,1])
+summary(LinearModel1.Recovered.lm)
+summary(LinearModel2.Recovered.lm)
+```
+*Compare the summaries of the mix with the summary of the single linear model fit.*
+The 3 models all have similar slopes, basically 0.80. But they all have different intercepts. LM1.R has a postive intercept at 0.759 and LM2.R has a negative intercept at -0.66, while EstLinModel has its intercept in between the other two at 0.03. It seems that we have 3 close to parallel lines with the EstLinMod between the two separated models. The residual standard error in the separated models is about half of the SE in the single linear model. Also, the 2 separated models show a higher R squared than the single model. 
+```{r}
+# Plot residuals
+Residuals.Comparison<-cbind(Unscrambled.residuals=c(summary(LinearModel1.Recovered.lm)$residuals,summary(LinearModel2.Recovered.lm)$residuals),Single.Model.residuals=EstimatedResiduals)
+matplot(Residuals.Comparison,type="p",pch=16,ylab="Residuals before and after unscrambling")
+##Estimate standard deviations
+apply(Residuals.Comparison,2,sd)
+```
+##Conclusion
+
+*How the sample was mixed? With what probability?*
+It seems like the sample was mixed 50/50 from the binomial test.
+*Was the probability significantly different from 0.5?* 
+Not according to the binomial test, which gave us a 0.489 probability of success.
+*What were the parameters of mixed models?*
+LinearModel1.Recovered Int = 0.759 Slope = 0.803
+LinearModel2.Recovered Int = -0.66 Slope = 0.811
+*How much we reduced variance of residuals by separating the models?*
+We reduced the variance of the residuals by about half.
+
+
+#2. Check Assumptions of Linear Model.
+```{r}
+assignmentData<-read.csv(file=paste(datapath,"Week6AssignmentData.csv",sep="/"),header = TRUE,sep=",")
+head(assignmentData)
+lin.mod <- lm(assignmentData$Output ~ assignmentData$Input)
+resid <- lin.mod$residuals
+plot(resid)
+```
+*Are main assumptions of linear model satisfied?*
+
+```{r}
+##Gaussian assumption
+hist(resid)
+qqnorm(resid)
+qqline(resid)
+##IID assumption.
+library(randtests)
+turning.point.test(resid)
+##Autocorrelation function
+#Autocorrelation with lag 1
+acf(resid)
+```
+* Gaussian assumption - We can check for normality by looking at a histogram of the residuals, as well as running a qq plot. The histogram looks to be close to normal, and the qq plot looks to follow the line y = x. Therefore we can say that the distribution of the residuals is normal.
+* IID assumption - We can check if the data is independent and identically distributed by using the turning point test. This returns a p-value of close to zero which tells us that randomness (iid) needs to be rejected. 
+* Autocorrelation with lag 0 and 1 - Using the acf() function in r shows us that there is autocorrelation with lag 0 and 1. 
+

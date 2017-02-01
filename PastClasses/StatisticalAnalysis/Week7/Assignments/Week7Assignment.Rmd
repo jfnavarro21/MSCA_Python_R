@@ -1,0 +1,163 @@
+---
+title: "Homework Week 7"
+author: "John Navarro"
+date: "November 14, 2016"
+output: pdf_document
+---
+##1 Fitting linear models
+#1.1 Read the data
+```{r}
+#Read the data
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/StatisticalAnalysis/Week7/Assignments"
+Regression.ANOVA.Data<-as.matrix(read.csv(file=paste(datapath,"DataForRegressionANOVA.csv",sep="/"),header=TRUE,sep=","))
+Regression.ANOVA.Data<-read.csv(file=paste(datapath,"DataForRegressionANOVA.csv",sep="/"),header=TRUE,sep=",")
+head(Regression.ANOVA.Data)
+```
+#1.2 Fit linear models using: no inputs, only Input1, only Input2, both Input1 and Input2.
+```{r}
+#Fit four linear models
+#no inputs
+fit.1<-lm(Output~1,data=Regression.ANOVA.Data)
+#only input 1
+fit.1.2<-lm(Output~1+Input1,data=Regression.ANOVA.Data)
+#Only input 2
+fit.1.3<-lm(Output~1+Input2,data=Regression.ANOVA.Data)
+# both input 1 and 2
+fit.1.2.3<-lm(Output~.,data=Regression.ANOVA.Data)
+```
+##2 Compare ANOVA table of each fit with the summary
+#2.1 Outputs of anova().
+```{r}
+anova(fit.1.2)
+
+#Degrees of freedom of anova, 1 for Input 1, 498 for the Residuals
+anova(fit.1.2)$Df
+
+#dftot = n-1 is total degrees of freedom
+dftot <-  length(Regression.ANOVA.Data$Output)-1
+#dfI = k-1 is the degrees of freedom from the Input
+dfI <- 2-1
+#dfR = dftot - dfI is the degrees of freedom of the residuals
+dfR <- dftot - dfI
+print(c(dfI, dfR))
+
+#Sum of squares is equal to the sum of the square of each value subtracted from the mean of 
+#the sample
+anova(fit.1.2)$"Sum Sq"
+#Total sum of squares is given by subtracting each data Output value, by the sample mean of
+#data output, squaring that value and summing them all
+SST <- sum((Regression.ANOVA.Data$Output - mean(Regression.ANOVA.Data$Output))^2)
+#Sum of squares of residuals, is found in the linear model fit.1.2
+SSR <- sum(fit.1.2$residuals^2)
+#SSI = SST - SSR gives us the Sum of Squares of Input
+SSI <- SST - SSR
+print(c(SSI, SSR))
+
+#F value is the variation between Sample Means divided by the variation within the samples
+anova(fit.1.2)$"F value"[1]
+#Mean square estimate of inputs
+MSI <- SSI/dfI
+#Mean square estimate of the residuals
+MSR <- SSR/dfR
+#F value is the ratio of these two Mean Square values
+Fval <- MSI/MSR
+Fval
+
+
+#Pr(>F) gives us the probability that 2 samples have means this different, tells us if they 
+#are statistically significant if <0.5
+anova(fit.1.2)$"Pr(>F)"[1]
+pf(813.4763,1,498, lower.tail = F)
+
+```
+*What does "<2.2e-16" mean in the output of anova()?*
+Since our p-value is smaller than the significance level, we reject the null hypothesis and conclude that the Input 1 describes the variance in the data.
+
+#2.2 Compare summary(fit.1) and  anova(fit.1)
+```{r}
+summary(fit.1)
+anova(fit.1)
+c(anova(fit.1)$"Sum Sq",sum(fit.1$residuals^2))
+c(anova(fit.1)$Df,fit.1$df.residual,summary(fit.1)$df[2])
+
+```
+*Why anova table does not show fields F value and Pr(>F)?*
+In this case, the table does not show F value and Pr(>F) because we are only
+looking at the Intercept, not at any of the Inputs. Fvalue compares the 
+variances of means of two samples. Here we are only looking at one. 
+Similarly, there can be no Pr(>F) in this case.
+
+##2.3 Compare summary(fit.1.2) and  anova(fit.1.2)
+```{r}
+summary(fit.1.2)
+anova(fit.1.2)
+summary(fit.1.2)$fstatistic
+c(F.value=anova(fit.1.2)$"F value"[1],Df=anova(fit.1.2)$Df,P.value=anova(fit.1.2)$"Pr(>F)"[1])
+```
+*What is H0 for F value in anova(fit.1.2) and for F-ststistic in  summary(fit.1.2)?*
+The null hypothesis in the anova is that the Input1 model is the same as the intercept only model.
+The null hypothesis in the summary(fit.1.2) is that the slopes of the intercept only model and the linear model are equal.
+```{r}
+summary(fit.1.2)$r.squared
+#Obtain r-squared from anova, and calculate it manually
+anova(fit.1.2)$"Sum Sq"[1]/sum(anova(fit.1.2)$"Sum Sq")
+
+```
+
+#2.4 Compare summary(fit.1.3) and  anova(fit.1.3)
+```{r}
+summary(fit.1.3)
+anova(fit.1.3)
+```
+*What do you conclude from the anova table?*
+Since the Pr(F) is higher than the critical value. We can reject the null hypothesis and say that the variance from Input 2 is not significantly different from the variance explained by the Intercept model.
+```{r}
+c(F.value=anova(fit.1.3)$"F value"[1],Df=anova(fit.1.3)$Df,P.value=anova(fit.1.3)$"Pr(>F)"[1])
+summary(fit.1.3)$fstatistic
+```
+*What do you conclude from the F-statistic and its p-value?*
+Since the F Value is 1.63, we can say that the ratio of the 2 Mean Square values are similar. Since the P value is high, we conclude that the variance from Input 2 is not significantly different from the variance from the intercept model. The linear model 2 input does not add new information.
+*What is the minimum level for which you reject the null hypothesis?*
+We would reject the null hypothesis at a Pvalue of 0.05
+*What is the null hypothesis of this F-test?*
+The null hypothesis of the F-test is stating that the variance from Linear model using input 2 is equal to the variance of the Intercept only linear model.
+
+#2.5 Compare summary(fit.1.2.3) and  anova(fit.1.2.3)
+
+```{r}
+summary(fit.1.2.3)
+anova(fit.1.2.3)
+```
+
+*What do you conclude from the anova table?*
+That Input 1 explains much more of the total variance than Input 2
+*Compare F-statistic and R2 values.*
+
+The F-statistic is 406.1
+The R squared is 0.6204 and the Adjusted is almost the same at 0.6188, this tells us that Input 2 does not add much information
+
+##3 Use anova() to compare nested linear models
+
+```{r}
+anova(fit.1.2,fit.1.2.3)
+summary(fit.1.2.3)
+
+```
+*Did adding Input.2 change RSS in the anova table?*
+It decreased it by a very small amount the RSS went from 185.43 to 185.38
+*What do you conclude from Pr(>|t|) in summary(fit.1.2.3) and Pr(>F) in  anova(fit.1.3,fit.1.2.3)?*
+From the Pr(>t) we conclude that the Intercept and Input1 can explain the variance in the data, while Input 2 does not.
+The Pr(>F) is 0.7279, so we conclude that Model 2 is not statistically significant from Model 1
+
+*Why anova(fit.1.3,fit.1.2.3) returns P-value of F-statistic, but  summary(fit.1.2.3) returns Pr(>|t|) of t-statisic?*
+In anova, we use the F-test as a ratio of variances of two samples.
+In Linear model, the t-test is used to compare slopes.
+
+```{r}
+anova(fit.1,fit.1.2.3)
+summary(fit.1.2.3)
+c(anova(fit.1,fit.1.2.3)$F[2],summary(fit.1.2.3)$fstatistic[1])
+```
+
+*Explain what is H0 for F-test in summary(fit.1.2.3)*
+The null Hypothesis states that slopes of Input 1 and Input 2 are equal to zero.

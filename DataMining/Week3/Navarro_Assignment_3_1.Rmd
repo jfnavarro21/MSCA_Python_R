@@ -1,0 +1,79 @@
+---
+title: "Navarro_Assignment_3_1"
+author: "John Navarro"
+date: "January 22, 2017"
+output: pdf_document
+---
+# 1. Perform latent class analysis for market segmentation
+
+First we will download the German Credit data and separate for only categorical variables
+
+```{r}
+#Load the German data
+germanCredit<- read.csv("C:/Users/JohntheGreat/Documents/MSCA/DataMining/Week1/german_credit.csv", header=TRUE, sep=",")
+#colnames(germanCredit)
+#load poLCA
+library(poLCA, quietly = TRUE)
+
+# select only the chosen variables
+GC.inputs<- germanCredit[, c(4,5,7,11,15)]
+colnames(GC.inputs)
+#summary(GC.inputs)
+
+# need to split the data into train/test portions
+set.seed(555)
+train_ind <- sample(seq_len(nrow(GC.inputs)), size = 700)
+# separate into two data frames: train and test
+train_data <- GC.inputs[train_ind, ]
+test_data<- GC.inputs[-train_ind, ]
+train_alt <- train_data +1
+test_alt <- test_data +1
+
+
+```
+
+# 2. Determine K cluster solutions
+
+```{r}
+#Run LCA
+set.seed(555)
+f1 = cbind(Payment.Status.of.Previous.Credit, Purpose, Value.Savings.Stocks, Guarantors,Concurrent.Credits)~1
+results.2 <- poLCA(f1,train_alt,nclass=2,nrep=500,tol=.001,verbose=FALSE,graphs=TRUE)
+results.3 <- poLCA(f1,train_alt,nclass=3,nrep=500,tol=.001,verbose=FALSE,graphs=TRUE)
+results.4 <- poLCA(f1,train_alt,nclass=4,nrep=500,tol=.001,verbose=FALSE,graphs=TRUE)
+results.5 <- poLCA(f1,train_alt,nclass=5,nrep=500,tol=.001,verbose=FALSE,graphs=TRUE)
+
+results.3$npar
+table(results.3$predclass)
+# Compare the AIC values for each group of clusters
+c(results.2$aic,results.3$aic,results.4$aic,results.5$aic)
+
+```
+Here we see that AIC recommends using 3 clusters, since it returns the lowest AIC values for results 2 through 5. Similarly, the graphs show us that separating into 3 clusters is the best choice. The 4 cluster grouping has one group that only contains 5% of the population and 5 clusters has 2 classes with less than 4% of the population share. The 3 cluster grouping has appropriate population share distributions, as well as distinct groupings in regards to all variables, except for Value.Savings.Stocks.
+
+# 3. Perform Holdout validation of LCA
+
+```{r}
+# Perform holdout testing using the centers from training set
+f1 = cbind(Payment.Status.of.Previous.Credit, Purpose, Value.Savings.Stocks, Guarantors,Concurrent.Credits)~1
+results.3.ho <- poLCA(f1,test_alt,nclass=3,nrep=1,tol=.001,verbose=FALSE,graphs=TRUE,probs.start=results.3$probs)
+table(results.3.ho$predclass)
+#Look at relative class sizes and conditional probabilites
+results.3$probs
+results.3.ho$probs
+
+```
+
+
+#4. Provide implications on the solutions
+
+The results from the test data seem to match the class characteristics from the training data set. They have similar population proportions train(70%, 20% 10%) and test(82%, 12%, 6%). Furthermore, the probability distributions for each variable per class are similar between both datasets. 
+
+#5. Comment on the similarities and differences between the clustering solutions from Assignment 2 with the solution you generated using LCA
+
+K-means and KO-means were the two clustering techniques from last week. They were similar to LCA in the sense that they both were able to cluster the data set into different classes. The techniques allowed you to study them and choose a optimal number of classes. For K-means and KO-means we used scree plots to look at the point where additional classes do not add much in the way of a higher VAF. Similarly, we were able to choose an optimal number of classes in LCA by plotting AIC. Here we look for the minimal AIC value to give us an indication of how many clusters to proceed with.
+
+Despite these small similarities, the two techniques are very distinct. First, I chose different variables to represent the data. With K-means and KO-means I chose 4 numeric variables that were scaled to represent the data. While using LCA, I used 5 different variables that were all categorical. This allowed K-means and KO-means to be easier to interpret. We could describe the classes based on their attributes in the chosen variables. LCA is more difficult to interpret, since it is reliant on the existence of an unobserved latent variable that is affecting the observed variables.
+
+Since we randomly split the data in both clustering techniques, we can say that both models were stable since they returned similar clusters in both the training and test data sets.
+
