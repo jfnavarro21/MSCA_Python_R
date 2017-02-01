@@ -26,6 +26,7 @@ cv2.waitKey(0)
 cv2.destroyAllWindows()
 
 # Task 1c: Image differencing
+# Create the gray and blurry mario for mario2.png
 img4 = cv2.imread('mario4.png', cv2.IMREAD_COLOR)
 ret,thresh = cv2.threshold(img4, 127,255,cv2.THRESH_BINARY)
 grayMario4 = cv2.cvtColor(img4, cv2.COLOR_BGR2GRAY)
@@ -33,15 +34,14 @@ blurMario4 = cv2.GaussianBlur(grayMario4, (9,9), 0)
 cv2.imshow('image', blurMario4)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
-diffMario = cv2.absdiff(np.float32({blurMario}), np.float32({blurMario4}))
-print(type(diffMario))
+# Use absdiff function to show the pixel differences from the two marios
+diffMario = cv2.absdiff(np.float32((blurMario)), np.float32((blurMario4)))
 cv2.imshow('image', diffMario)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 
-##1a- transormation first, need to remove the color, B&W transformation
-# 1b-Then remove the motion, by making the quality worse so you dont see minor moviemnt/detail
-# 1c-Use a threshold to have no grayscale, 0 and 1
+# Task 2: Something is moving on the video - Part 1
+
 # number of pixels that have changed, compared to all pixels in picture
 
 # 4 define ROI region of interest. define a small square
