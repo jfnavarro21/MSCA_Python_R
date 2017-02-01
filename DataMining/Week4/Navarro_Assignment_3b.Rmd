@@ -72,4 +72,65 @@ From the PC plots and from the PC loadings we can see how they are related. PC1 
 
 # 5. Show that the Loadings are orthogonal
 
+We can demonstrate that the loadings are orthogonal by multiplying them together, the result should be zero.
+```{r}
+# Display the dot product of PC1 and PC2, PC1 and PC3, PC2 and PC3
+c(pr.cr$rotation[, 1]%*%pr.cr$rotation[, 2], pr.cr$rotation[, 1]%*%pr.cr$rotation[, 3], pr.cr$rotation[, 2]%*%pr.cr$rotation[, 3])
+```
+ Since all three of these values are virtually zero, then we can say that all three of the loadings are orthogonal
+ 
+# 6. Show that the components are orthogonal
+ 
+Similarly, we can use the same property to prove that the components are orthogonal
 
+```{r}
+# Display the dot product of component 1 and comp 2, comp 1 and comp3, comp 2 and comp 3
+c(pr.cr$x[,1]%*%pr.cr$x[,2], pr.cr$x[,1]%*%pr.cr$x[,3], pr.cr$x[,2]%*%pr.cr$x[,3])
+```
+
+Again, since all three of these dot product calculations result in virtually zero, we can say that these three components are all orthogonal to one another.
+
+# 7. Perform Holdout validation of PCA
+
+```{r}
+# Run PCA with only 3 components
+pr.cr.only3 <- prcomp(train_scaled,retx=TRUE,tol=0.8)
+summary(pr.cr.only3)
+#Predict the component scores
+cs <- predict(pr.cr.only3, newdata=test_scaled)
+
+scores.train_loadings <- as.vector(cs[,1:2] %*% t(pr.cr.only3$rotation)[1:2,])
+print(head(scores.train_loadings))
+```
+
+# 8. Compute the VAR in the Holdout sample. 
+
+```{r}
+#Original vs Predicted R^2
+round(cor(as.vector(train_scaled), as.vector(pr.cr.only3$x[,1:2] %*% t(pr.cr.only3$rotation)[1:2,]))^2,2)
+
+round(cor(as.vector(test_scaled), scores.train_loadings)^2,2)
+```
+(((This is not right)))
+
+
+# 9. Rotate the component loadins using varimax rotation
+
+```{r}
+#Rotate loadings
+rotate <- varimax(pr.cr$rotation[,1:3])
+rotate$loadings
+```
+
+(((compare to original loadings in training)))
+
+# 10. Plot the rotate loadings 1 vs rotated loadings 2 and 3. 
+
+```{r}
+plot(x=rotate$rotmat[,1],rotate$rotmat[,2],xlab="PC-rot 1 Loadings", ylab="PC-rot 2 Loadings",main = "Rotated 1 vs 2")
+plot(x=rotate$rotmat[,1],rotate$rotmat[,3],xlab="PC-rot 1 Loadings", ylab="C-rot 3 Loadings",main = "Rotated 1 vs 3")
+```
+
+# Do you think Principal Components reduced this data a lot? Do you like the solution?
+
+((((needs to be completed))))
