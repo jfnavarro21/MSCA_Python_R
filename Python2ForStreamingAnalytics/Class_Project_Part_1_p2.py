@@ -34,6 +34,7 @@ cv2.imshow('image', blurMario4)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 absdiff(np.float32({blurMario}), np.float32({blurMario4}))
+#To be continued
 
 ##1a- transormation first, need to remove the color, B&W transformation
 # 1b-Then remove the motion, by making the quality worse so you dont see minor moviemnt/detail
