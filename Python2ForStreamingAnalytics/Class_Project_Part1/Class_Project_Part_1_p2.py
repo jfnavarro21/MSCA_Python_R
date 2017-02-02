@@ -81,8 +81,8 @@ plt.plot(np.array(motion_fractions)) # why doesnt this work???
 plt.ylabel('Number of pixels that change')
 plt.axis([0,60,0,0.3])
 plt.show()
-#cv2.imshow('thresh', thresh)
-cv2.imshow('Thresholded difference', subtracted)
+cv2.imshow('Gray', gray_current_frame)
+#cv2.imshow('Thresholded difference', subtracted)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 
@@ -91,9 +91,11 @@ cv2.destroyAllWindows()
 
 # Task 4a: Define ROIs
 
-rectangle(current_frame, (X1,Y1),(X2,Y2),(0,255,0),3)
-
-# I don't know how to display this on the video/image
+ROI = cv2.rectangle(smooth_current_frame, (400,400),(250,300),(0,255,0),3)
+ROI2 = cv2.rectangle(ROI, (600,400),(450,300),(0,5,0),3)
+cv2.imshow('ROI2', ROI2)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
 
 # Task 4b: Use ROIs and Apply the same function to detect movement
 
