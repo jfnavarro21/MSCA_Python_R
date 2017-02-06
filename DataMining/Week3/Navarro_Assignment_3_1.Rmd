@@ -47,7 +47,7 @@ results.3$npar
 table(results.3$predclass)
 # Compare the AIC values for each group of clusters
 c(results.2$aic,results.3$aic,results.4$aic,results.5$aic)
-
+c(results.2$bic,results.3$bic,results.4$bic,results.5$bic)
 ```
 Here we see that AIC recommends using 3 clusters, since it returns the lowest AIC values for results 2 through 5. Similarly, the graphs show us that separating into 3 clusters is the best choice. The 4 cluster grouping has one group that only contains 5% of the population and 5 clusters has 2 classes with less than 4% of the population share. The 3 cluster grouping has appropriate population share distributions, as well as distinct groupings in regards to all variables, except for Value.Savings.Stocks.
 

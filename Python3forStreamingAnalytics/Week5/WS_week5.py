@@ -1,11 +1,5 @@
-# book, buy / sell side
-# 3 functions add modify cancel
-# goal is to give top of book()
-#dictionary  order={ side": b/s, "quanty":100, , "price": 10, "symbol": MQ, "exchange": E1}
-# sort the orders
-
-#order={ "side": B, "quantity":100, "price": 10, "symbol" : MQ, "Exchange": E1, "orderid":1}
-
+# Input will be in the following format
+# order={ "side": B, "quantity":100, "price": 10, "symbol" : MQ, "Exchange": E1, "orderid":1}
 
 class orderbook():
     def __init__(self):
@@ -26,26 +20,38 @@ class orderbook():
 
 
     def cancel(self, order):
-        for i in self.buy:
-            if order['orderid'] == i['orderid'] and order['exchange'] == i['exchange']:
-                del order[i]
+        if order['side'] == 'B':
+            for i in self.buy:
+                if order['orderid'] == i['orderid'] and order['exchange'] == i['exchange']:
+                    del order[i]
 
-        for i in self.sell:
-            if order['orderid'] == i['orderid'] and order['exchange'] == i['exchange']:
-                del order[i]
+        if order['side'] == 'S':
+            for i in self.sell:
+                if order['orderid'] == i['orderid'] and order['exchange'] == i['exchange']:
+                    del order[i]
+
+        else:
+            print('ERROR')
 
     def modify(self, order):
-        for i in self.buy:
-            if order['orderid'] == i['orderid'] and order['exchange'] == i['exchange'] and order['price'] != i['price'] or order['quantity'] != i['quantity']:
-                # replace order['price'], replace order['quantity']
-                order['price'] = i['price'] ######FLIP
-                order['quantity'] = i['quantity']
+        if order['side'] == 'B':
+            for i in self.buy:
+                if order['orderid'] == i['orderid'] and order['exchange'] == i['exchange'] and order['price'] != i['price'] or order['quantity'] != i['quantity']:
+                    # replace order['price'], replace order['quantity']
+                    i['price'] = order['price']
+                    i['quantity'] = order['quantity']
+                break
 
-        for i in self.sell:
-            if order['orderid'] == i['orderid'] and order['exchange'] == i['exchange'] and order['price'] != i['price'] or order['quantity'] != i['quantity']:
-                # replace order['price'], replace order['quantity']
-                order['price'] = i['price']
-                order['quantity'] = i['quantity']
+        if order['side'] == 'S':
+            for i in self.sell:
+                if order['orderid'] == i['orderid'] and order['exchange'] == i['exchange'] and order['price'] != i['price'] or order['quantity'] != i['quantity']:
+                    # replace order['price'], replace order['quantity']
+                    i['price'] = order['price']
+                    i['quantity'] = order['quantity']
+                break
+
+        else:
+            print('ERROR')
 
     def top_of_book(self, order):
         # return the best bid and offers

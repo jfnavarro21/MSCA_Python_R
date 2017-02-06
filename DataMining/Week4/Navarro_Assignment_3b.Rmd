@@ -7,130 +7,126 @@ output: pdf_document
 
 # 1. Split the sample into two random samples. Standardize the data
 ```{r}
-#Load the German data
-#germanCredit<- read.csv("C:/Users/JohntheGreat/Documents/MSCA/DataMining/Week1/german_credit.csv", header=TRUE, sep=",")
+# Load the caret German data
 library(caret)
 data(GermanCredit)
-head(GermanCredit)
-# select only the chosen variables
+# Select only the chosen variables
 GCD<- GermanCredit[, c(1:7)]
-#colnames(GCD)
-#summary(GCD)
-# need to split the data into train/test portions
-set.seed(555)
+# Need to split the data into train/test portions
+set.seed(12345)
 train_ind <- sample(seq_len(nrow(GCD)), size = 700)
-# separate into two data frames: train and test
+# Randomly separate into two data frames: train and test
 train_data <- GCD[train_ind, ]
 test_data<- GCD[-train_ind, ]
-head(train_data)
-head(test_data)
-#standardize train_data
+# Standardize the training the data
 train_means = colMeans(train_data)
 train_sd = apply(train_data, 2, sd)
 train_scaled = scale(train_data)
-head(train_scaled)
+# Standardize the test data using the train data means and standard deviations
 test_scaled = scale(test_data, center=train_means, scale = train_sd)
-head(test_scaled)
 ```
 
 # 2. Perform principal components of variables 1:7 on the training sample
 
 ```{r}
+# Run prcomp on the scaled train data
 pr.cr <- prcomp(train_scaled)
-summary(pr.cr)
 attributes(pr.cr)
-pr.cr
-#Loadings/coefficients
+# Print the Loadings/coefficients
 round(pr.cr$rotation,2)
-#components
+# print the components
 round(head(pr.cr$x),2)
-
 ```
 
 # 3. Generate Scree Plots and select the number of components to retain
 ```{r}
+# Plot Variances
 plot(pr.cr$sdev^2, ylab= "Variances", type='b')
-#Variance Explained
+# Variance Explained
 pr.var <- pr.cr$sdev ^2
 pve <- pr.var/sum(pr.var)
 plot(pve, xlab="Principal Component", ylab="Proportion of Variance Explained ", ylim=c(0,0.3), type = "b")
+# Plot the cumulative variance
 plot(cumsum(pve), xlab="Principal Component ", ylab=" Cumulative Proportion of Variance Explained ", ylim=c(0,1), type = "b")
 ```
-It appears that there is a bend at the 3rd Principal Component.
+It appears that there is a bend at the 4th Principal Component.
 
 # 4. Plot Component 1 loadings vs Component 2 loadings
 
 ```{r}
 plot(x=pr.cr$rotation[, 1], y=pr.cr$rotation[, 2], xlab='PC1 Loadings', ylab='PC2 Loadings', main = 'PC1 v PC2')
 plot(x=pr.cr$rotation[, 1], y=pr.cr$rotation[, 3], xlab='PC1 Loadings', ylab='PC3 Loadings', main = 'PC1 v PC3')
+plot(x=pr.cr$rotation[, 1], y=pr.cr$rotation[, 4], xlab='PC1 Loadings', ylab='PC4 Loadings', main = 'PC1 v PC4')
 #Loadings/coefficients
-round(pr.cr$rotation[,1:3],2)
+round(pr.cr$rotation[,1:4],2)
 ```
 
-From the PC plots and from the PC loadings we can see how they are related. PC1 seems to have a strong negative relationship with Loan Duration and Credit Amount. Therefore, we can describe PC1 by the "Total Credit"" (a representation of the amount combined with the duration). PC2 has the strongest relationship with (in descending order) Age, Residence duration, Number of exisisting credits at the bank, and Number of people being liable to provide maintenance for. These attributes could be categorized under the name "Developed Household". For instance, the longer you have lived at a residence, the older you usually are, the more loans you have taken out, and the more people are in your family. PC3 Is most strongly influenced by Installment Rate in percentage of disposable income, so we can call it "Loan Rate."
+From the PC plots and from the PC loadings we can see how they are related. PC1 seems to have a strong negative relationship with Loan Duration and Credit Amount. Therefore, we can describe PC1 by the "Total Credit"" (a representation of the amount combined with the duration). PC2 has the strongest relationship with (in descending order) Age, Residence duration, Number of exisisting credits at the bank, and Number of people being liable to provide maintenance for. These attributes could be categorized under the name "Developed Household". For instance, the longer you have lived at a residence, the older you usually are, the more loans you have taken out, and the more people are in your family. PC3 Is most strongly influenced by Installment Rate in percentage of disposable income, so we can call it "Loan Rate." PC4 has opposite relationships with residence duration and exisitingcredits, so we can it "Bank relationship"
 
 
 # 5. Show that the Loadings are orthogonal
 
 We can demonstrate that the loadings are orthogonal by multiplying them together, the result should be zero.
 ```{r}
-# Display the dot product of PC1 and PC2, PC1 and PC3, PC2 and PC3
-c(pr.cr$rotation[, 1]%*%pr.cr$rotation[, 2], pr.cr$rotation[, 1]%*%pr.cr$rotation[, 3], pr.cr$rotation[, 2]%*%pr.cr$rotation[, 3])
+# Display the dot product of the combinations of PC1 Loadings - PC4 Loadings
+c(pr.cr$rotation[, 1]%*%pr.cr$rotation[, 2], pr.cr$rotation[, 1]%*%pr.cr$rotation[, 3], pr.cr$rotation[, 1]%*%pr.cr$rotation[, 4],pr.cr$rotation[, 2]%*%pr.cr$rotation[, 3], pr.cr$rotation[, 2]%*%pr.cr$rotation[, 4],pr.cr$rotation[, 3]%*%pr.cr$rotation[, 4])
 ```
- Since all three of these values are virtually zero, then we can say that all three of the loadings are orthogonal
+ Since all of these values are virtually zero, then we can say that all four of the loadings are orthogonal
  
 # 6. Show that the components are orthogonal
  
 Similarly, we can use the same property to prove that the components are orthogonal
 
 ```{r}
-# Display the dot product of component 1 and comp 2, comp 1 and comp3, comp 2 and comp 3
-c(pr.cr$x[,1]%*%pr.cr$x[,2], pr.cr$x[,1]%*%pr.cr$x[,3], pr.cr$x[,2]%*%pr.cr$x[,3])
+# Display the dot product of components 1-4
+c(pr.cr$x[,1]%*%pr.cr$x[,2], pr.cr$x[,1]%*%pr.cr$x[,3], pr.cr$x[,1]%*%pr.cr$x[,4], pr.cr$x[,2]%*%pr.cr$x[,3], pr.cr$x[,2]%*%pr.cr$x[,4], pr.cr$x[,3]%*%pr.cr$x[,4])
 ```
 
-Again, since all three of these dot product calculations result in virtually zero, we can say that these three components are all orthogonal to one another.
+Again, since all of these dot product calculations result in virtually zero, we can say that these components are all orthogonal to one another.
 
 # 7. Perform Holdout validation of PCA
 
 ```{r}
-# Run PCA with only 3 components
-pr.cr.only3 <- prcomp(train_scaled,retx=TRUE,tol=0.8)
-summary(pr.cr.only3)
-#Predict the component scores
-cs <- predict(pr.cr.only3, newdata=test_scaled)
 
-scores.train_loadings <- as.vector(cs[,1:2] %*% t(pr.cr.only3$rotation)[1:2,])
-print(head(scores.train_loadings))
+pr.cr.ho <- prcomp(train_scaled,retx=TRUE,tol=0.2)
+#Predict the component scores(factors)
+cs <- predict(pr.cr.ho, newdata=test_scaled)
+# Matrix multiply the predicted comp scores with transpose of component loadings
+predicted.dataset <- round(cs %*% t(pr.cr.ho$rotation),2)
+head(predicted.dataset)
+
 ```
 
-# 8. Compute the VAR in the Holdout sample. 
-
+# 8. Compute the VAF in the Holdout sample. 
 ```{r}
-#Original vs Predicted R^2
-round(cor(as.vector(train_scaled), as.vector(pr.cr.only3$x[,1:2] %*% t(pr.cr.only3$rotation)[1:2,]))^2,2)
 
-round(cor(as.vector(test_scaled), scores.train_loadings)^2,2)
+#Original vs Predicted correlations
+
+round(cor(as.vector(train_scaled), as.vector(pr.cr.ho$x[,1:4] %*% t(pr.cr.ho$rotation)[1:4,])),2)
+round(cor(as.vector(test_scaled), as.vector(cs[,1:4] %*% t(pr.cr.ho$rotation)[1:4,])),2)
+
 ```
-(((This is not right)))
+Here we can see that the correlation in the holdout set is lower than the correlation in the training set. This leads me to believe that the model is unstable. Perhaps we do not have enough Principal components to explain the variation in the data.
 
 
-# 9. Rotate the component loadins using varimax rotation
+# 9. Rotate the component loadings using varimax rotation
 
 ```{r}
 #Rotate loadings
-rotate <- varimax(pr.cr$rotation[,1:3])
+rotate <- varimax(pr.cr$rotation[,1:4])
 rotate$loadings
 ```
 
-(((compare to original loadings in training)))
+The varimax rotation doesn't materially change the interpretation of the principal componenets. It alters some of the loadings slightly by a couple percentage points, but not large enough to change the overall picture.
 
-# 10. Plot the rotate loadings 1 vs rotated loadings 2 and 3. 
+# 10. Plot the rotate loadings 1 vs rotated loadings 2, 3 and 4. 
 
 ```{r}
 plot(x=rotate$rotmat[,1],rotate$rotmat[,2],xlab="PC-rot 1 Loadings", ylab="PC-rot 2 Loadings",main = "Rotated 1 vs 2")
 plot(x=rotate$rotmat[,1],rotate$rotmat[,3],xlab="PC-rot 1 Loadings", ylab="C-rot 3 Loadings",main = "Rotated 1 vs 3")
+plot(x=rotate$rotmat[,1],rotate$rotmat[,4],xlab="PC-rot 1 Loadings", ylab="C-rot 4 Loadings",main = "Rotated 1 vs 4")
 ```
 
 # Do you think Principal Components reduced this data a lot? Do you like the solution?
 
-((((needs to be completed))))
+Yes, Principal Componenets was able to reduce the number of variables in this data. However, I don't like the solution since the model doesn't seem stable enough. There is quite a drop in correlation from the training set to the test data set. Perhaps increasing the number of PCs will help in the correlation drop. 
