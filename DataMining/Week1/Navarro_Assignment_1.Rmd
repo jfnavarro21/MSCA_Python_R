@@ -1,0 +1,163 @@
+---
+title: "Assignment_1"
+author: "John Navarro"
+date: "February 6, 2017"
+output: pdf_document
+---
+# 1. Use GermanCredit data
+```{r}
+# Load the germandata
+AssignmentData<- read.csv("C:/Users/JohntheGreat/Documents/MSCA/DataMining/Week1/german_credit.csv", header=TRUE, sep=",")
+```
+
+# 2. Build a regression model to predict variable "Amount"
+
+I chose the following four variables, because they seemed to make logical sense to describe the output, Credit Amount.
+
+```{r}
+# use sample() to separate the data into training and test sets
+set.seed(555)
+train_ind <- sample(seq_len(nrow(AssignmentData)), size = 632)
+# separate into two data frames: train and test
+train <- AssignmentData[train_ind, ]
+test <- AssignmentData[-train_ind, ]
+
+#Build a regression model to predict Credit Amount
+modeltrain <- lm(Credit.Amount~Value.Savings.Stocks + Instalment.per.cent + Length.of.current.employment + Occupation, data=train)
+summary(modeltrain)
+coeff.train <- summary(modeltrain)$coefficients
+r.sqd.train <- summary(modeltrain)$r.squared
+
+# Use predict() on the test dataset
+modeltest <- predict(modeltrain, newdata=test)
+
+# Compare modeltest(predicted)to test (Holdout) by using correlation
+r.sqd.ho <- (cor(as.vector(modeltest), as.vector(test$Credit.Amount)))^2
+# print a vector containing the coefficients, the r squared from training, and
+# the r squared from the comparison of predicted and holdout
+print(round(c(coeff.train[,1], r.sqd.train, r.sqd.ho),2))
+
+```
+
+#3. Repeat steps 1-3 1000 times
+
+```{r}
+results = list()
+# Repeat 1000 times
+for (i in 1:1000){
+  train_ind <- sample(seq_len(nrow(AssignmentData)), size = 632)
+  # separate into two data frames: train and test
+  train <- AssignmentData[train_ind, ]
+  test <- AssignmentData[-train_ind, ]
+  
+  #Build a regression model to predict Credit Amount
+  modeltrain <- lm(Credit.Amount~Value.Savings.Stocks + Instalment.per.cent + Length.of.current.employment + Occupation, data=train)
+  summary(modeltrain)
+  # Store the coefficients and r squared from the modeltrain linear model
+  coeff.train <- summary(modeltrain)$coefficients
+  r.sqd.train <- summary(modeltrain)$r.squared
+  # Use predict() on the test data set
+  modeltest <- predict(modeltrain, newdata=test)
+  # Compare modeltest(predicted)to test (Holdout)
+  r.sqd.ho <- (cor(as.vector(modeltest), as.vector(test$Credit.Amount)))^2
+  # Create a data frame to hold coefficients from modeltrain
+  dat <- data.frame(coeff.train[,1])
+  # bind the r squared from modeltrain and bind rsquared from the holdout
+  dat2 <- rbind(r.sqd.train, dat)
+  dat3 <- rbind(r.sqd.ho,dat2)
+  #print(dat3)
+  dat$i = i
+  results[[i]] <- dat3
+}
+
+#install.packages("data.table")
+library(data.table)
+all_results = do.call(cbind, results)
+setattr(all_results, "row.names",c("R2.Train", "R2.Holdout","Intercept", "Value.Savings.Stocks", "Instalment.per.cent", "Length.of.current.employment", "Occupation"))
+
+# transpose all_results into new.data.frame
+new.data.frame = data.frame(t(all_results))
+head(new.data.frame)
+
+```
+
+# 4. Plot the distributions of all coefficients, holdout R2 and fall in R2
+
+```{r}
+# Print histograms of all the coefficients and r-squareds
+hist(new.data.frame$R2.Train, breaks=10, main = 'Distribution of R-squareds of Train data')
+hist(new.data.frame$R2.Holdout, breaks=10, main = 'Distribution of R-squareds of Holdout data')
+hist(new.data.frame$Intercept, breaks=10, main = 'Distribution of Intercept coefficients')
+hist(new.data.frame$Value.Savings.Stocks, breaks=10, main = 'Distribution of Value Savings Stocks coefficients')
+hist(new.data.frame$Instalment.per.cent, breaks=10, main = 'Distribution of Installment percent coefficients')
+hist(new.data.frame$Length.of.current.employment, breaks=10, main = 'Distribution of Length of Employment coefficients')
+hist(new.data.frame$Occupation, breaks=10, main = 'Distribution of Occupation coefficients')
+```
+
+# 5. Compute the averages and standard deviations for all 1000 coefficients
+
+```{r}
+# Compute the means and the standard deviations across rows
+coeff.means <- data.frame(ID=all_results[,1],  Means=rowMeans(all_results[,-1]))
+coeff.sdvs <- apply(all_results, 1, sd)
+# bind into one data frame
+cbind(coeff.means, coeff.sdvs)
+
+```
+
+# 6. Compare the average to single model over total sample
+
+```{r}
+# Build a full model using the whole sample data
+full.model <- lm(Credit.Amount~Value.Savings.Stocks + Instalment.per.cent + Length.of.current.employment + Occupation, data=AssignmentData)
+fm <- as.vector(summary(full.model)$coefficients[,1])
+avg <- coeff.means$Means[3:7]
+# Compare the coefficients from the full model and the averages from the 1000 repetitions
+print(fm)
+print(avg)
+```
+
+The coefficients are all fairly close to each other
+
+# 7. Sort the coefficients and calculate CI
+
+```{r}
+# Sort the coefficients
+
+new.data.frame = data.frame(t(all_results))
+dim(new.data.frame)
+# sort and store the coefficients
+sorted.Intercept <- sort(new.data.frame$Intercept)
+sorted.Value.Savings.Stocks <- sort(new.data.frame$Value.Savings.Stocks)
+sorted.Instalment.per.cent <- sort(new.data.frame$Instalment.per.cent)
+sorted.Length.of.current.employment <- sort(new.data.frame$Length.of.current.employment)
+sorted.Occupation <- sort(new.data.frame$Occupation)
+
+
+# calculate the CIs
+sorted.coefficients <- cbind(sorted.Intercept, sorted.Value.Savings.Stocks, sorted.Instalment.per.cent, sorted.Length.of.current.employment, sorted.Occupation)
+# Extract the 25th and the 97th item from the sorted coefficients
+sorted.lower.bound <- sorted.coefficients[25,]
+sorted.upper.bound <- sorted.coefficients[975,]
+# store the 5 confidence intervals in sorted.CIs
+sorted.CIs <- cbind(sorted.lower.bound,  sorted.upper.bound)
+
+# scale the CI's down
+scaled.lower.bound <- (sorted.coefficients[25,])*0.632^0.5
+scaled.upper.bound <- (sorted.coefficients[975,])*0.632^0.5
+# store the 5 confidence intervals in scaled.CIs
+scaled.CIs <- cbind(scaled.lower.bound, scaled.upper.bound)
+print(sorted.CIs)
+print(scaled.CIs)
+# get the confidence intervals from the full model
+confint(full.model,c("(Intercept)", "Value.Savings.Stocks", "Instalment.per.cent", "Length.of.current.employment","Occupation"), level = 0.95)
+```
+
+ * How do these CIs compare to the CIs computed from the single model? Tighter or broader?*
+ 
+ The scaled confidence intervals are tighter than the confidence intervals obtained from the full model.
+ 
+
+# 8. Summary
+ 
+We have achieved different confidence intervals through a couple different methods. We can see that by running the full data set into the linear regression function, we get the widest confidence interval. By running the method 1000 times and using the average of the coefficients, we can achieve a tighter set of bounds. By scaling these to the size of the training set (632) we get even tighter bounds. This makes sense because the more times you run the model, the  more certain we can be that our distribution will smooth out and approach the  true probability distribution around the mean.
