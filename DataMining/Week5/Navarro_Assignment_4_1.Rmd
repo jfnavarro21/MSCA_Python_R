@@ -1,0 +1,79 @@
+---
+title: "Navarro_Assignment_4_1"
+author: "John Navarro"
+date: "February 4, 2017"
+output: pdf_document
+---
+# 1. Generate training and holdout samples 
+
+```{r}
+
+germanCredit<- read.csv("C:/Users/JohntheGreat/Documents/MSCA/DataMining/Week1/german_credit.csv", header=TRUE, sep=",")
+# Need to split the data into Train and Holdout portions
+set.seed(12345)
+train_ind <- sample(seq_len(nrow(germanCredit)), size = 700)
+# Randomly separate into two data frames: Train and Holdout
+Train <- germanCredit[train_ind, ]
+Holdout<- germanCredit[-train_ind, ]
+```
+
+# 2. Build a Logistic Regression model for Train
+
+```{r}
+full <- glm(formula = Creditability~., data=Train, family = binomial(link=logit))
+summary(full)
+#round(log.model$coefficients,3)
+```
+
+
+# 3. Choose only the main-effects
+
+```{r}
+
+
+# null model class
+null <- glm(formula = Creditability~1, data=Train, family = binomial(link=logit))
+summary(null)
+drop1(log.model)
+
+```
+```{r}
+log.model.min.AIC <- glm(formula = Creditability~ Account.Balance+Payment.Status.of.Previous.Credit+Value.Savings.Stocks+Instalment.per.cent+Duration.of.Credit..month.+Sex...Marital.Status+Guarantors+Most.valuable.available.asset+Type.of.apartment, data=Train, family = binomial(link=logit))
+summary(log.model.min.AIC)
+```
+
+By eliminating the following 11 variables (Purpose, Duration.in.Current.address, Age..years., Occupation, No.of.dependents, No.of.Credits.at.this.Bank, Telephone, Foreign.Worker, Concurrent.Credits, Length.of.current.employment, Credit.Amount), we are able to minimize AIC (714.03), which is lower than the AIC achieved by the full model (724.73) and of course lower than the null model (860.57)
+
+# 4. Generate the confusion matrix on Train data
+```{r}
+xp=log.model.min.AIC$fitted.values
+xp[xp>=0.5]=1
+xp[xp<0.5]=0
+table(Train$Creditability, xp)
+round(prop.table(table(Train$Creditability, xp),1),2)
+table(Train[,1], xp)
+```
+*Do you like the model Why or why not?*
+
+((((needs to be completed))))
+
+# 5. Perform Holdout validation testing
+```{r}
+# Holdout validation
+predicted.values = predict(log.model.min.AIC, newdata = Holdout, type = "response")
+class(predicted.values)
+predicted.values[predicted.values>=0.5] = 1
+predicted.values[predicted.values<0.5] = 0
+table(Holdout[,1], predicted.values)
+#predicted.values
+# Confusion matrix for holdout sample
+round(prop.table(table(Holdout[,1],predicted.values),1),2)
+
+
+
+
+```
+
+*Do you like the model Why or why not?*
+
+((((needs to be completed))))
