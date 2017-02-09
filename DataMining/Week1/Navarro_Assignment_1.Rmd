@@ -76,8 +76,10 @@ all_results = do.call(cbind, results)
 setattr(all_results, "row.names",c("R2.Train", "R2.Holdout","Intercept", "Value.Savings.Stocks", "Instalment.per.cent", "Length.of.current.employment", "Occupation"))
 
 # transpose all_results into new.data.frame
-new.data.frame = data.frame(t(all_results))
+temp.data.frame = data.frame(t(all_results))
+new.data.frame <- cbind(temp.data.frame, (temp.data.frame$R2.Train-temp.data.frame$R2.Holdout)/temp.data.frame$R2.Train)
 head(new.data.frame)
+sd(new.data.frame[,8])
 
 ```
 
@@ -85,7 +87,7 @@ head(new.data.frame)
 
 ```{r}
 # Print histograms of all the coefficients and r-squareds
-hist(new.data.frame$R2.Train, breaks=10, main = 'Distribution of R-squareds of Train data')
+hist(new.data.frame[,8], breaks=10, main = '% fall in R-squared')
 hist(new.data.frame$R2.Holdout, breaks=10, main = 'Distribution of R-squareds of Holdout data')
 hist(new.data.frame$Intercept, breaks=10, main = 'Distribution of Intercept coefficients')
 hist(new.data.frame$Value.Savings.Stocks, breaks=10, main = 'Distribution of Value Savings Stocks coefficients')
@@ -102,6 +104,7 @@ coeff.means <- data.frame(ID=all_results[,1],  Means=rowMeans(all_results[,-1]))
 coeff.sdvs <- apply(all_results, 1, sd)
 # bind into one data frame
 cbind(coeff.means, coeff.sdvs)
+
 
 ```
 
@@ -125,39 +128,74 @@ The coefficients are all fairly close to each other
 # Sort the coefficients
 
 new.data.frame = data.frame(t(all_results))
-dim(new.data.frame)
-# sort and store the coefficients
+# sort the coefficients
 sorted.Intercept <- sort(new.data.frame$Intercept)
 sorted.Value.Savings.Stocks <- sort(new.data.frame$Value.Savings.Stocks)
 sorted.Instalment.per.cent <- sort(new.data.frame$Instalment.per.cent)
 sorted.Length.of.current.employment <- sort(new.data.frame$Length.of.current.employment)
 sorted.Occupation <- sort(new.data.frame$Occupation)
-
-
-# calculate the CIs
+# store the sorted coefficeints
 sorted.coefficients <- cbind(sorted.Intercept, sorted.Value.Savings.Stocks, sorted.Instalment.per.cent, sorted.Length.of.current.employment, sorted.Occupation)
 # Extract the 25th and the 97th item from the sorted coefficients
-sorted.lower.bound <- sorted.coefficients[25,]
-sorted.upper.bound <- sorted.coefficients[975,]
-# store the 5 confidence intervals in sorted.CIs
-sorted.CIs <- cbind(sorted.lower.bound,  sorted.upper.bound)
-
-# scale the CI's down
-scaled.lower.bound <- (sorted.coefficients[25,])*0.632^0.5
-scaled.upper.bound <- (sorted.coefficients[975,])*0.632^0.5
-# store the 5 confidence intervals in scaled.CIs
-scaled.CIs <- cbind(scaled.lower.bound, scaled.upper.bound)
-print(sorted.CIs)
-print(scaled.CIs)
+sorted.L.bound <- sorted.coefficients[25,]
+sorted.U.bound <- sorted.coefficients[975,]
+# store the 5 confidence intervals in sorted.CIS
+sorted.CIS <- cbind(sorted.L.bound,  sorted.U.bound)
+# calculate the sorted, scaled, and full.model band widths
+sorted.band.width <-  sorted.CIS[,2]-sorted.CIS[,1]
+scaled.width <- sorted.band.width*0.795
 # get the confidence intervals from the full model
-confint(full.model,c("(Intercept)", "Value.Savings.Stocks", "Instalment.per.cent", "Length.of.current.employment","Occupation"), level = 0.95)
+fullmodel.bounds <- confint(full.model,c("(Intercept)", "Value.Savings.Stocks", "Instalment.per.cent", "Length.of.current.employment","Occupation"), level = 0.95)
+full.model.width <- fullmodel.bounds[,2]-fullmodel.bounds[,1]
+# create dataframe with CIs, band width, scaled width and full model width
+scaled.width.df <- cbind(sorted.L.bound, sorted.U.bound, sorted.band.width, scaled.width, full.model.width)
+scaled.width.df
+
+# shrink the bounds around the mean
+cf.means.vec <- as.vector(coeff.means[3:7,2])
+scaled.LB.Int <- cf.means.vec[1] - 0.795*(cf.means.vec[1] - sorted.L.bound[1])
+scaled.UB.Int <- cf.means.vec[1] - 0.795*(cf.means.vec[1] - sorted.U.bound[1])
+scaled.LB.VSS <- cf.means.vec[2] - 0.795*(cf.means.vec[2] - sorted.L.bound[2])
+scaled.UB.VSS <- cf.means.vec[2] - 0.795*(cf.means.vec[2] - sorted.U.bound[2])
+scaled.LB.IPC <- cf.means.vec[3] - 0.795*(cf.means.vec[3] - sorted.L.bound[3])
+scaled.UB.IPC <- cf.means.vec[3] - 0.795*(cf.means.vec[3] - sorted.U.bound[3])
+scaled.LB.LCE <- cf.means.vec[4] - 0.795*(cf.means.vec[4] - sorted.L.bound[4])
+scaled.UB.LCE <- cf.means.vec[4] - 0.795*(cf.means.vec[4] - sorted.U.bound[4])
+scaled.LB.OCC <- cf.means.vec[5] - 0.795*(cf.means.vec[5] - sorted.L.bound[5])
+scaled.UB.OCC <- cf.means.vec[5] - 0.795*(cf.means.vec[5] - sorted.U.bound[5])
+cent.scal.LB <- c(scaled.LB.Int,scaled.LB.VSS,scaled.LB.IPC,scaled.LB.LCE,scaled.LB.OCC)
+cent.scal.UB <- c(scaled.UB.Int,scaled.UB.VSS,scaled.UB.IPC,scaled.UB.LCE,scaled.UB.OCC)
+
+# Couldnt get this for loop to work, instead of hardcoding above....
+#
+#sorted.lower.bound <- sorted.coefficients[25,]
+#sorted.lower.bound.vector <- as.vector(t(sorted.lower.bound))
+#print(sorted.lower.bound.vector)
+#cf.means.vec <- as.vector(coeff.means[3:7,2])
+#print(cf.means.vec)
+#
+#
+#for (i in cf.means.vec){
+#  print(cf.means.vec[i] - 0.795*(cf.means.vec[i] - sorted.lower.bound.vector[i]))
+#}
+
+# create dataframe with full model CIs and centered/scaled CIs
+CI.bounds.df <- cbind(sorted.L.bound, sorted.U.bound, cent.scal.LB, cent.scal.UB)
+CI.bounds.df
+
 ```
 
  * How do these CIs compare to the CIs computed from the single model? Tighter or broader?*
  
- The scaled confidence intervals are tighter than the confidence intervals obtained from the full model.
+ First, we can look at the widths of the various CIs. Looking at the sorted coefficient CIs (col=sorted.band.width) and the full model's formula derived CIs( col=full.model.width), we can see that the bands in the sorted (1000 reps) is tighter than the full model CIs. 
+ 
+ If we shrink the widths of the sorted CIs (col=scaled.width), we can conclude the same thing. That reducing the all the widths by 0.795 ( which is equivalent to 0.623 ^ 0.5) will lead us to the same conclusion. That the widths of the scaled CIs (1000 reps) are tighter than the widths of the full model's CIs.
+ 
+ Now, when we shrink the bounds around the mean, we can see that we see simlar results. That the mean centered and scaled CI are narrower than the full model CIs
  
 
 # 8. Summary
  
-We have achieved different confidence intervals through a couple different methods. We can see that by running the full data set into the linear regression function, we get the widest confidence interval. By running the method 1000 times and using the average of the coefficients, we can achieve a tighter set of bounds. By scaling these to the size of the training set (632) we get even tighter bounds. This makes sense because the more times you run the model, the  more certain we can be that our distribution will smooth out and approach the  true probability distribution around the mean.
+We have achieved different confidence intervals through a couple different methods. We can see that by running the full data set into the linear regression function, we get the widest confidence interval. By running the method 1000 times and using the average of the coefficients, we can achieve a tighter set of bounds. By scaling these to the size of the training set (632) we get even tighter bounds. This makes sense because the more times you run the model, the  more certain we can be that our distribution will smooth out and approach the  true probability distribution around the mean. This will result in tighter confidence intervals with a larger sample (1000 vs 632)
+
+Looking at the r-squareds, we can see that in the 1000 iterations for both the training and the holdout data, they are very similar. Those values are 0.169 and 0.178.  Similarly, we can look at the percent fall in R squared. When we look at the mean for all 1000 iterations we see the mean is -0.09 with a st dev of 0.27. Although the resulting r squareds are low, which is a function of poor variance explanation from the chosen variables. We can conclude that the model is stable, since the % fall in r squared is low and has a small standard deviation.
