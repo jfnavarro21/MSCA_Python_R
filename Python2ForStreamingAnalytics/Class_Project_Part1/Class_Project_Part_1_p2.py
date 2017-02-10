@@ -42,60 +42,83 @@ import matplotlib.pyplot as plt
 # cv2.destroyAllWindows()
 
 # Task 2 & 3: Something is moving on the video - Part 1 and 2
+motion_fractions_roi = []
+motion_fractions_roi2 = []
+motion_thresh = 35
+running_avg = None
+alpha = 0.2
+
+def detect_movement(ROI, current_frame, motion_fractions):
+    gray_current_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY)
+    smooth_current_frame = cv2.GaussianBlur(gray_current_frame, (9, 9), 0)
+    running_avg = []
+    aw = []
+    if running_avg is None:
+        running_avg = np.float32(smooth_current_frame)
+
+
+
+    aw.append(cv2.accumulateWeighted(np.float32(smooth_current_frame), running_avg, alpha))
+    diff_frame = cv2.absdiff(np.float32(smooth_current_frame), np.float32(running_avg))
+    # ret,thresh = cv2.threshold(smooth_current_frame,127,255,cv2.THRESH_BINARY)
+    _, subtracted = cv2.threshold(diff_frame, motion_thresh, 1, cv2.THRESH_BINARY)
+    motion_fraction = (sum(sum(subtracted)) / (subtracted.shape[0] * subtracted.shape[1]))
+    motion_fractions.append(motion_fraction)
+    print(aw)
+    print(diff_frame)
+    print(motion_fractions)
+    plt.plot(np.array(motion_fractions))
+    plt.ylabel('Number of pixels that change')
+    plt.axis([0, 60, 0, 0.3])
+    plt.show()
+
+    cv2.imshow('Smooth', smooth_current_frame)
+    #cv2.imshow('Thresholded difference', subtracted)
+    cv2.waitKey(0)
+    feed_descriptor.release()
+    cv2.destroyAllWindows()
 
 # Open a video descriptor
 feed_descriptor = cv2.VideoCapture('train_training.mp4')
 # Read all the frames from the feed
-motion_fractions = []
-motion_thresh = 35
-running_avg = None
-alpha = 0.2
 while(feed_descriptor.isOpened()):
-    # Read frame by frame
     current_frame = feed_descriptor.read()[1]
-
-    if current_frame is not None:
-        gray_current_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY)
-        smooth_current_frame = cv2.GaussianBlur(gray_current_frame, (9, 9), 0)
-
-        if running_avg is None:
-            running_avg = np.float32(smooth_current_frame)
-
-        else:
-            aw = cv2.accumulateWeighted(np.float32(smooth_current_frame), running_avg, alpha)
-            diff_frame = cv2.absdiff(np.float32((smooth_current_frame)), np.float32((aw)))
-            #ret,thresh = cv2.threshold(smooth_current_frame,127,255,cv2.THRESH_BINARY)
-            _, subtracted = cv2.threshold(diff_frame, motion_thresh, 1, cv2.THRESH_BINARY)
-
-            motion_fraction = (sum(sum(subtracted))/(subtracted.shape[0]*subtracted.shape[1]))
-            motion_fractions.append(motion_fraction)
-   # Check if current frame is not different from NONE
-    elif current_frame is None:
+    if current_frame is None:
+        print('######')
         break
+    print('kkkkkkkk')
+    ROI = cv2.rectangle(current_frame, (400, 400), (250, 300), (0, 255, 0), 3)
+    detect_movement(ROI, current_frame, motion_fractions_roi)
+    ROI2 = cv2.rectangle(current_frame, (600, 400), (450, 300), (0, 5, 0), 3)
+    detect_movement(ROI2, current_frame, motion_fractions_roi2)
 
-# I believe the code below prints the final versions of aw, diff_frame, and thresh
-print(aw)
-print(diff_frame)
-print(motion_fractions)
-plt.plot(np.array(motion_fractions)) # why doesnt this work???
-plt.ylabel('Number of pixels that change')
-plt.axis([0,60,0,0.3])
-plt.show()
-cv2.imshow('Gray', gray_current_frame)
-#cv2.imshow('Thresholded difference', subtracted)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+
+
+    # I believe the code below prints the final versions of aw, diff_frame, and thresh
+    # print(aw)
+    # print(diff_frame)
+    # print(motion_fractions)
+    # plt.plot(np.array(motion_fractions)) # why doesnt this work???
+    # plt.ylabel('Number of pixels that change')
+    # plt.axis([0,60,0,0.3])
+    # plt.show()
+    #
+    # cv2.imshow('Smooth', smooth_current_frame)
+    # cv2.imshow('Thresholded difference', subtracted)
+    # cv2.waitKey(0)
+    # feed_descriptor.release()
+    # cv2.destroyAllWindows()
 
 
 # Task 4: Where this train goes?
 
 # Task 4a: Define ROIs
 
-ROI = cv2.rectangle(smooth_current_frame, (400,400),(250,300),(0,255,0),3)
-ROI2 = cv2.rectangle(ROI, (600,400),(450,300),(0,5,0),3)
-cv2.imshow('ROI2', ROI2)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+
+
+#cv2.imshow('ROI2', ROI2)
+#cv2.waitKey(0)
+#cv2.destroyAllWindows()
 
 # Task 4b: Use ROIs and Apply the same function to detect movement
 
@@ -104,11 +127,5 @@ cv2.destroyAllWindows()
 
 
 
-# number of pixels that have changed, compared to all pixels in picture
-
-# 4 define ROI region of interest. define a small square
-#measure when the first one moves and when the 2nd one moves
 #5 recalibrate ROI, left to right or right to left
-# Task 1: Preliminary understand about video processing
-# Task 1a: Display Mario in Gray-scale
-#cv2.cvtColor (frame, cv2.COLOR_BGR2GRAY)
+

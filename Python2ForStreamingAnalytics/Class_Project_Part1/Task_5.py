@@ -12,9 +12,11 @@ roi_thresh = 0.05
 motion_fractions = []
 motion_fractions2 = []
 motion_thresh = 35
+motion_thresh2 = 35
 running_avg = None
 running_avg2 = None
 alpha = 0.2
+alpha2 = 0.2
 
 while(feed_descriptor.isOpened()):
     # Read frame by frame
@@ -26,22 +28,22 @@ while(feed_descriptor.isOpened()):
 
         if running_avg is None:
             # If this is the first frame, set running_avg to current frame
-            # running_avg = np.float32(smooth_current_frame[0:100, 0:150])
-            # running_avg2 = np.float32(smooth_current_frame[150:250, 350:500])
-            running_avg = np.float32(smooth_current_frame[0:50, 50:150])
+            # running_avg = np.float32(smooth_current_frame[0:50, 50:150])
+            # running_avg2 = np.float32(smooth_current_frame[200:300, 400:550])
+            running_avg = np.float32(smooth_current_frame[125:175, 200:350])
             running_avg2 = np.float32(smooth_current_frame[200:300, 400:550])
 
         else:
             # diff_frame is the absolute difference between the current frame and the running weighted average of previous frames
-            diff_frame = cv2.absdiff(np.float32((smooth_current_frame[0:50, 50:150])), np.float32((running_avg)))
+            diff_frame = cv2.absdiff(np.float32((smooth_current_frame[125:175, 200:350])), np.float32((running_avg)))
             diff_frame2 = cv2.absdiff(np.float32((smooth_current_frame[200:300, 400:550])), np.float32((running_avg2)))
             # accumulateWeighted averages the current frame along with the previous frames in a weighted manner
-            aw = cv2.accumulateWeighted(np.float32(smooth_current_frame[0:50, 50:150]), running_avg, alpha)
-            aw2 = cv2.accumulateWeighted(np.float32(smooth_current_frame[200:300, 400:550]), running_avg2, alpha)
+            aw = cv2.accumulateWeighted(np.float32(smooth_current_frame[125:175, 200:350]), running_avg, alpha)
+            aw2 = cv2.accumulateWeighted(np.float32(smooth_current_frame[200:300, 400:550]), running_avg2, alpha2)
             # threshold function will transfrom the pixel to white if the difference is above motion_thresh value,
             # it will transorm the pixel to black if it is below the threshold
             _, subtracted = cv2.threshold(diff_frame, motion_thresh, 1, cv2.THRESH_BINARY)
-            _, subtracted2 = cv2.threshold(diff_frame2, motion_thresh, 1, cv2.THRESH_BINARY)
+            _, subtracted2 = cv2.threshold(diff_frame2, motion_thresh2, 1, cv2.THRESH_BINARY)
             # motion_fraction is the percentage of pixels on the entire framethat are moving
             motion_fraction = (sum(sum(subtracted))/(subtracted.shape[0]*subtracted.shape[1]))
             # Adds each motion fraction to a list called motion_fractions
