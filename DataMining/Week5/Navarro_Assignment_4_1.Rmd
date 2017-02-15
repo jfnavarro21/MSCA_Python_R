@@ -34,15 +34,16 @@ summary(full)
 # null model class
 null <- glm(formula = Creditability~1, data=Train, family = binomial(link=logit))
 summary(null)
-drop1(log.model)
+drop1(full)
 
 ```
+
+ 
 ```{r}
 log.model.min.AIC <- glm(formula = Creditability~ Account.Balance+Payment.Status.of.Previous.Credit+Value.Savings.Stocks+Instalment.per.cent+Duration.of.Credit..month.+Sex...Marital.Status+Guarantors+Most.valuable.available.asset+Type.of.apartment, data=Train, family = binomial(link=logit))
 summary(log.model.min.AIC)
 ```
-
-By eliminating the following 11 variables (Purpose, Duration.in.Current.address, Age..years., Occupation, No.of.dependents, No.of.Credits.at.this.Bank, Telephone, Foreign.Worker, Concurrent.Credits, Length.of.current.employment, Credit.Amount), we are able to minimize AIC (714.03), which is lower than the AIC achieved by the full model (724.73) and of course lower than the null model (860.57)
+I built a glm model starting with the predictors with the highest values in the AIC column from the drop1()function. By eliminating the following 11 variables (Purpose, Duration.in.Current.address, Age..years., Occupation, No.of.dependents, No.of.Credits.at.this.Bank, Telephone, Foreign.Worker, Concurrent.Credits, Length.of.current.employment, Credit.Amount), we are able to minimize AIC (714.03), which is lower than the AIC achieved by the full model (724.73) and of course lower than the null model (860.57)
 
 # 4. Generate the confusion matrix on Train data
 ```{r}
@@ -54,12 +55,12 @@ round(prop.table(table(Train$Creditability, xp),1),2)
 table(Train[,1], xp)
 ```
 *Do you like the model Why or why not?*
-
-((((needs to be completed))))
+This model does a good job of predicting good creditors. It is successful predicting good credit 90% of the time, and is incorrect 10 % of the time. When it predicts that a creditor is bad, it is only correct 44% of the time. While 56% of the time its prediction that the creditor is bad is incorrect. This is not as bad as if it was the opposite way (doing a poor job of predicting good credit). This model can be improved in its prediction of poor credit. But at least it is over predicting bad credit and not underpredicting bad credit.
 
 # 5. Perform Holdout validation testing
 ```{r}
 # Holdout validation
+# returns probability that y =1 given x
 predicted.values = predict(log.model.min.AIC, newdata = Holdout, type = "response")
 class(predicted.values)
 predicted.values[predicted.values>=0.5] = 1
@@ -69,11 +70,8 @@ table(Holdout[,1], predicted.values)
 # Confusion matrix for holdout sample
 round(prop.table(table(Holdout[,1],predicted.values),1),2)
 
-
-
-
 ```
 
 *Do you like the model Why or why not?*
 
-((((needs to be completed))))
+This model shows similar results in the holdout set. Which gives us confidence that the model is stable. And more confidence in its results. I like this model since it has a high success rate of predicting good credit. Despite being inaccurate with the poor credit predictions, at least it over predicts bad credit instead of underpredicting bad credit.
