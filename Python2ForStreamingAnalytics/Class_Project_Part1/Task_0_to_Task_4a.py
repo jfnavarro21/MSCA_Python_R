@@ -69,18 +69,19 @@ while(feed_descriptor.isOpened()):
             # diff_frame is the absolute difference between the current frame and the running weighted average of previous frames
             diff_frame = cv2.absdiff(np.float32((smooth_current_frame)), np.float32((running_avg)))
             # Weights the current frame along with the previous frames
-            aw = cv2.accumulateWeighted(np.float32(smooth_current_frame), running_avg, alpha)
+            cv2.accumulateWeighted(np.float32(smooth_current_frame), running_avg, alpha)
             # for all pixels above "motion_thresh" set to 1, otherwise set to 0
             _, subtracted = cv2.threshold(diff_frame, motion_thresh, 1, cv2.THRESH_BINARY)
             # motion_fraction is the percentage of pixels on the entire framethat are moving
             motion_fraction = (sum(sum(subtracted))/(subtracted.shape[0]*subtracted.shape[1]))
             motion_fractions.append(motion_fraction)
-
+            print(motion_fraction)
    # Check if current frame is not different from NONE
     elif current_frame is None:
         break
 
 # Plot the motion fractions/percent of pixels that change
+
 plt.plot(np.array(motion_fractions))
 plt.ylabel('Number of pixels that change')
 plt.axis([0,60,0,0.3])

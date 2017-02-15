@@ -34,8 +34,8 @@ while(feed_descriptor.isOpened()):
             diff_frame = cv2.absdiff(np.float32((smooth_current_frame[250:400, 300:400])), np.float32((running_avg)))
             diff_frame2 = cv2.absdiff(np.float32((smooth_current_frame[250:400, 500:600])), np.float32((running_avg2)))
             # accumulateWeighted averages the current frame along with the previous frames in a weighted manner
-            aw = cv2.accumulateWeighted(np.float32(smooth_current_frame[250:400, 300:400]), running_avg, alpha)
-            aw2 = cv2.accumulateWeighted(np.float32(smooth_current_frame[250:400, 500:600]), running_avg2, alpha)
+            cv2.accumulateWeighted(np.float32(smooth_current_frame[250:400, 300:400]), running_avg, alpha)
+            cv2.accumulateWeighted(np.float32(smooth_current_frame[250:400, 500:600]), running_avg2, alpha)
             # threshold function will transfrom the pixel to white if the difference is above motion_thresh value,
             # it will transorm the pixel to black if it is below the threshold
             _, subtracted = cv2.threshold(diff_frame, motion_thresh, 1, cv2.THRESH_BINARY)
