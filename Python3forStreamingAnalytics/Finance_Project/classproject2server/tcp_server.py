@@ -1,3 +1,7 @@
+#  paste this in the terminal
+#  python tcp_server.py -p 9995 -f finance/finance.csv -t 1
+
+
 #!/usr/bin/env python3
 
 import socket
