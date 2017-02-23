@@ -1,0 +1,108 @@
+---
+title: "Navarro_Assignment_5_1"
+author: "John Navarro"
+date: "February 17, 2017"
+output: pdf_document
+---
+# 1. Use the training and holdout samples for GermanCredit data set
+```{r}
+# source the functions clustreg() and clustreg_predict()
+source("clustreg.R")
+source("clustreg_predict.R")
+
+#Load in the data
+germanCredit<- read.csv("C:/Users/JohntheGreat/Documents/MSCA/DataMining/Week1/german_credit.csv", header=TRUE, sep=",")
+
+#convert the categorical data into factors
+#create a vector with the columns of categorical variables
+cat.variable.cols <- c(1,2,4,5,7,8,10,11,13,15,16,18,20,21)
+# convert these columns into factors
+for (col in cat.variable.cols){
+  germanCredit[, col] <- as.factor(germanCredit[,col])
+}
+# check structure of the data
+#str(germanCredit)
+
+# Need to split the data into Train and Holdout portions
+set.seed(12345)
+train_ind <- sample(seq_len(nrow(germanCredit)), size = 700)
+# Randomly separate into two data frames: Train and Holdout
+Train <- germanCredit[train_ind, ]
+Holdout<- germanCredit[-train_ind, ]
+# Check the structure of the Train and Holdout datasets
+#str(Train)
+#str(Holdout)
+```
+
+# 2. Build a Cluster-wise Regression Model. 
+
+*a. Use the clustreg()*
+
+```{r}
+colnames(Train)
+# select only the numeric variables as predictors, amount is the dependent variable
+#colnames(Train[,c(6,3,9,12,14,17,19)])
+
+# Use clustreg() on selected variables
+clustreg.german.1=clustreg(Train[,c(6,3,9,12,14,17,19)],1,1,1234,1)
+clustreg.german.2=clustreg(Train[,c(6,3,9,12,14,17,19)],2,1,1234,10)
+clustreg.german.3=clustreg(Train[,c(6,3,9,12,14,17,19)],3,24,1234,10)
+
+# Look at regression results per model
+clustreg.german.1$results
+clustreg.german.2$results
+clustreg.german.3$results
+
+```
+
+
+*b. You don't have to use categorical predictors*
+*c. Plot R-squared as a function of the number of clusters*
+
+```{r}
+# Plot R-squared vs Number of clusters
+plot(c(1,2,3),c(clustreg.german.1$rsq.best, clustreg.german.2$rsq.best, clustreg.german.3$rsq.best), ylim=c(0,1), type="l", col=4, main="VAF Plot for German Train: Cluster-wise Regression", ylab="Variance Accounted For", xlab="Number of Clusters")
+```
+
+#3. Perform Holdout validation testing using clustreg_predict()
+
+```{r}
+# Holdout validation using 1 cluster
+ho=clustreg.predict(clustreg.german.1, Holdout[,c(6,3,9,12,14,17,19)])
+ho$rsq
+table(ho$cluster)
+round(prop.table(table(ho$cluster)),2)
+
+# Holdout validation using 2 clusters
+ho=clustreg.predict(clustreg.german.2, Holdout[,c(6,3,9,12,14,17,19)])
+ho$rsq
+table(ho$cluster)
+round(prop.table(table(ho$cluster)),2)
+
+# Holdout validation using 3 clusters
+ho=clustreg.predict(clustreg.german.3, Holdout[,c(6,3,9,12,14,17,19)])
+ho$rsq
+table(ho$cluster)
+round(prop.table(table(ho$cluster)),2)
+
+
+```
+
+#4. Choose a model with the best regression interpretation on Training Data, R-sqd, and related significance, and the best holdout performance
+
+I believe that the model with 3 clusters (clustreg.german.3) performs the best of all the models. When I look at the regression on the Train dataset, the r-sqds for the 3 clusters are 0.91, 0.67 and 0.85. 
+
+The interpretation of the clusters makes sense. The first cluster's credit amount is related to a the loan, the length at current address, age, dependents. The credit amount is negatively related to the loan rate and the number of loans at the bank. The second group's credit amount increases with the length of the loan and with the number of dependents. While the amount will decrease with the rate and duration at current address. The third group's credit amount increases along with the length of the loan, the length at current address and age. While the 3rd group's credit amount is negatively related to the rate, number of loans at the bank and number of dependents.
+
+Additionally, the 3 cluster model had the best holdout performance. It had the highest r-squared of the three models (0.85) as well as having somewhat equal sized cluster populations.
+
+
+((((((what does related significance mean))))))
+
+#5. Summarize your results for both training and holdout
+
+It seems that cluster-wise regression can give us good groupings in this data. Since the data has a dependent variable(Credit Amount), we can use regression to minimize residual distance and create these clusters. While we look at the training data and one regression as a single cluster, we see that it cannot be described by a single line, Rsqd is virtually zero. By running cluster-wise regression into 2 clusters, we can see improvement. Cluster 1 has Rsqd=0.56 and Cluster 2 has Rsqd = 0.84. They both have 3-4 significant predictors. We can also run the cluster-wise regression into 3 groupings. Here we see that we get good R squareds (0.91,0.69, 0.85)
+
+Next we can move onto the Holdout datset. Here we see that one cluster gives us poor results (Rsqd = 0.03). The 2 cluster model gives us a good Rsqd(0.76) with good groupings( 190 and 110). The 3 cluster model gives us a better total Rsqd(0.85) although the groupings are not quite as even ( 98, 153, 49)
+
+This type of clustering cannot give us predictions, but the regressions within the clusters give us a good way to classify the data. 
