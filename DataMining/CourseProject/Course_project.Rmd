@@ -1,0 +1,321 @@
+---
+title: "Currency_project"
+author: "John Navarro"
+date: "February 11, 2017"
+output: pdf_document
+---
+
+# Objective
+
+The objective of this research is to classify daily FX data into currency groupings and create trading strategies within these groupings. 
+
+# Collecting the Data
+
+We have chosen to analyze the top 13 traded FX currencies along with spot gold. The dataset is composed of 3 years of daily closing prices. By looking at the data, we see that the currency values are very different. For instance, the South Korean won closed at 1.4327 while the US dollar trades at 100.80. In order to compare daily changes across countries, we need to normalize the data. We chose to represent the daily values as a percent change. 
+(Today's price - Yesterday's price) / Yesterday's price
+
+```{r}
+# Import the data
+# This is the closing price data
+CurrClose<- read.csv("C:/Users/JohntheGreat/Documents/MSCA/DataMining/CourseProject/Currencies_close_data.csv", header=TRUE, sep=",")
+
+# This is the data after changing to percent change
+CurrDataPer<- read.csv("C:/Users/JohntheGreat/Documents/MSCA/DataMining/CourseProject/Currencies_percent_change.csv", header=TRUE, sep=",")
+
+# A quick look at the standardized data
+summary(CurrDataPer)
+head(CurrDataPer)
+
+# The data must be transposed to use hclust()
+CurrData<- read.csv("C:/Users/JohntheGreat/Documents/MSCA/DataMining/CourseProject/Currencies_percent_change_transposed.csv", header=TRUE, sep=",")
+```
+
+Separate all three data sets into Training and Test sets. Since this is time series data, we will keep the data sets continuous. The Training set will contain the first 68% of the data while the test set will include the final 32% of the data.
+
+```{r}
+# This is the transposed data for the clustering calculations
+CurrData.Train <- CurrData[,2:501]
+CurrData.Test <- CurrData[ ,502:734 ]
+
+#This is the closing price data to be used in the regression calculations
+CurrDataPer.Train <- CurrDataPer[1:500,]
+CurrDataPer.Test <- CurrDataPer[501:733,]
+
+# This is the actual close prices to be used with the trading signals
+CurrClose.Train <- CurrClose[1:500,]
+Currclose.Test <- CurrClose[501:733,]
+
+
+```
+
+#Using Heirarchical Clustering to find similar pairs
+
+```{r}
+# Separate by clusters using 4 different methods
+clusters <- hclust(dist(CurrData.Train), method = 'ward.D')
+plot(clusters, main= "Ward dendogram Training")
+
+clusters <- hclust(dist(CurrData.Train), method = 'single')
+plot(clusters, main= "Single Link dendogram Training")
+
+clusters <- hclust(dist(CurrData.Train), method = 'complete')
+plot(clusters, main= "Complete Link dendogram Training")
+
+clusters <- hclust(dist(CurrData.Train), method = 'average')
+plot(clusters, main= "Average Link dendogram Training")
+```
+
+
+From the dendograms of the full set of currencies, we see the following groupings are consistently paired:
+
++ Commodity currencies-(4-AUD and 6-NZD)
++ European currencies-(1-EUR and 9-EUR/GBP)
++ Asian Currencies-(13-CNY and 14-HKD).
++ North American Currencies(5-CAD and 8-MXN)
++ Yen and US(2-JPY and 11-USD)
+
+Four of these groupings make sense anecdotally. Australia and New Zealand's economies and currencies are closely tied together and were typically involved in the carry trade. Similarly the economies of China and Hong Kong are very correlated, we can see this in their currency relationship. Canada and Mexico are 2 of the top 3 biggest trading partners with the US. Japan and the US have had low interest rates during this time period. They both have been used as funding currencies for the carry trade. 
+
+9-EUR/GBP is widely traded, but is obviously associated with one of its components 1-EUR. 10-GOLD also seems to be the first product to be split off, it is consisitently dissimilar from the other products.  We can remove these two from the data set and see if the groupings change. Unfortunately, we cannot pair anything with the US dollar. Since currencies have to be traded in pairs, most settle in dollars. We will also remove 11-USD.
+
+
+```{r}
+# Remove 8,9,and 10 from the clusters
+CurrData2.Train <- CurrData.Train[c(1:8,12:14), ]
+
+# Separate by clusters using different methods
+clusters <- hclust(dist(CurrData2.Train), method = 'ward.D')
+plot(clusters, main= "Ward dendogram Training")
+
+clusters <- hclust(dist(CurrData2.Train), method = 'single')
+plot(clusters, main= "Single Link dendogram Training")
+
+clusters <- hclust(dist(CurrData2.Train), method = 'complete')
+plot(clusters, main= "Complete Link dendogram Training")
+
+clusters <- hclust(dist(CurrData2.Train), method = 'average')
+plot(clusters, main= "Average Link dendogram Training")
+```
+
+Here we see that the pairs (5,8),(4,6) and (13,14) are consistently similar in the various dendogram methods. Pair (1,3) appears in the ward dendogram which consists of the European Currencies (1-EUR and 3- GBP).
+
+Moving forward, we can look at regression and correlation between these specific pairs to create a simple trading strategy.
+
+We could also, cut the dendogram higher and look at larger groupings. For instance in the Ward Dendogram, we can see that(1,3,4,6) are in one group. While (7,5,8,12,13,14,2,11) appear to be in a larger group.
+
+Alternatively, we could also try to model these as groups, in addition to pairs.
+
+# Regression and Pairs Trading
+
+```{r}
+# Plots of the four pairs
+
+plot(CurrDataPer.Train$EUR, CurrDataPer.Train$GBP, main= "Pound v Euro Training", xlab = "Euro", ylab="Pound")
+
+plot(CurrDataPer.Train$NZD, CurrDataPer.Train$AUD, main= "Australia v New Zealand Training", xlab = "New Zealand", ylab="Australia")
+
+plot(CurrDataPer.Train$HKD, CurrDataPer.Train$YUAN, main= "Renminbi v HK Dollar Training", xlab = "Hong Kong", ylab="Renminbi")
+
+plot(CurrDataPer.Train$CAD, CurrDataPer.Train$MXN, main= "Mexico v Canada Training", xlab = "Canada", ylab="Mexico")
+
+```
+
+
+
+# Linear Regression of British Pound v Euro Training Set
+
+```{r}
+
+GBP.EUR <- lm(CurrDataPer.Train$GBP ~ CurrDataPer.Train$EUR-1)
+summary(GBP.EUR)
+# Look at the residuals
+GBP.EUR.res <- GBP.EUR$residuals
+hist(GBP.EUR.res,20)
+par(mfrow=c(1,1))
+plot(GBP.EUR.res, col = "blue", main = "Residual Plot Pound vs Euro Training")
+acf(GBP.EUR.res)
+
+# extract the hedge ratio
+GBP.EUR.hr <- as.numeric(GBP.EUR$coefficients[1])
+
+# Create the spread(percent change data)
+GBP.EUR.spread.train <- CurrDataPer.Train$GBP - (GBP.EUR.hr * CurrDataPer.Train$EUR)
+
+# compute the statistics of the spread (percent change data)
+GBP.EUR.mean.train <- as.numeric(mean(GBP.EUR.spread.train, na.rm=T))
+GBP.EUR.sd.train <- as.numeric(sd(GBP.EUR.spread.train, na.rm = T))
+GBP.EUR.upperThr <- GBP.EUR.mean.train + 1.96 * GBP.EUR.sd.train
+GBP.EUR.lowerThr <- GBP.EUR.mean.train - 1.96 * GBP.EUR.sd.train
+
+# Visualize the spread (percent change) and thresholds
+plot(GBP.EUR.spread.train, main = "Pound vs Euro spread (per change) training set", type = "l")
+abline(h=GBP.EUR.mean.train, col = "red", lwd = 2)
+abline(h=GBP.EUR.upperThr, col="blue", lwd=2)
+abline(h=GBP.EUR.lowerThr, col="blue", lwd=2)
+
+
+# Pull the dates of the highest and lowest levels of spread (percent change)
+high <- GBP.EUR.spread.train[GBP.EUR.spread.train > GBP.EUR.upperThr]
+low <- GBP.EUR.spread.train[GBP.EUR.spread.train < GBP.EUR.lowerThr]
+GBP.EUR.buys <- which(GBP.EUR.spread.train %in% high)
+GBP.EUR.sells <- which(GBP.EUR.spread.train %in% low)
+
+# Create the spread in price terms
+GBP.EUR.spread.price.train <- CurrClose.Train$GBP - GBP.EUR.hr * CurrClose.Train$EUR
+
+# Plot the spread(price) chart with buys and sells marked
+plot(GBP.EUR.spread.price.train, main = "Pound v Euro spread (price) training set", type = "l")
+abline(v=GBP.EUR.sells, col='red')
+abline(v=GBP.EUR.buys, col='green')
+
+```
+
+
+# Linear Regression of Australian Dollar and New Zealand Dollar
+
+```{r}
+
+AUD.NZD <- lm(CurrDataPer.Train$AUD ~ CurrDataPer.Train$NZD-1)
+summary(AUD.NZD)
+# Look at the residuals
+AUD.NZD.res <- AUD.NZD$residuals
+hist(AUD.NZD.res,20)
+par(mfrow=c(1,1))
+plot(AUD.NZD.res, col = "blue", main = "Residual Plot Austrailia vs New Zealand Training")
+acf(AUD.NZD.res)
+
+# extract the hedge ratio
+AUD.NZD.hr <- as.numeric(AUD.NZD$coefficients[1])
+
+# Create the spread(percent change data)
+AUD.NZD.spread.train <- CurrDataPer.Train$AUD - (AUD.NZD.hr * CurrDataPer.Train$NZD)
+
+# compute the statistics of the spread (percent change data)
+AUD.NZD.mean.train <- as.numeric(mean(AUD.NZD.spread.train, na.rm=T))
+AUD.NZD.sd.train <- as.numeric(sd(AUD.NZD.spread.train, na.rm = T))
+AUD.NZD.upperThr <- AUD.NZD.mean.train + 1.96 * AUD.NZD.sd.train
+AUD.NZD.lowerThr <- AUD.NZD.mean.train - 1.96 * AUD.NZD.sd.train
+
+# Visualize the spread (percent change) and thresholds
+plot(AUD.NZD.spread.train, main = "Australia v New Zealand spread (per change) training set", type = "l")
+abline(h=AUD.NZD.mean.train, col = "red", lwd = 2)
+abline(h=AUD.NZD.upperThr, col="blue", lwd=2)
+abline(h=AUD.NZD.lowerThr, col="blue", lwd=2)
+
+# Pull the dates of the highest and lowest levels of spread (percent change)
+high <- AUD.NZD.spread.train[AUD.NZD.spread.train > AUD.NZD.upperThr]
+low <- AUD.NZD.spread.train[AUD.NZD.spread.train < AUD.NZD.lowerThr]
+AUD.NZD.buys <- which(AUD.NZD.spread.train %in% high)
+AUD.NZD.sells <- which(AUD.NZD.spread.train %in% low)
+
+# Create the spread in price terms
+AUD.NZD.spread.price.train <- CurrClose.Train$AUD - AUD.NZD.hr * CurrClose.Train$NZD
+
+# Plot the spread(price) chart with buys and sells marked
+plot(AUD.NZD.spread.price.train, main = "Australia v New Zealand spread (price) training set", type = "l")
+abline(v=AUD.NZD.sells, col='red')
+abline(v=AUD.NZD.buys, col='green')
+
+```
+
+# Linear Regression of Chinese Renminbi and Hong Kong Dollar
+
+```{r}
+
+
+CNY.HKD <- lm(CurrDataPer.Train$YUAN ~ CurrDataPer.Train$HKD-1)
+summary(CNY.HKD)
+# Look at the residuals
+CNY.HKD.res <- CNY.HKD$residuals
+hist(CNY.HKD.res,20)
+par(mfrow=c(1,1))
+plot(CNY.HKD.res, col = "blue", main = "Residual Plot Renminbi vs Hong Kong Dollar Training")
+acf(CNY.HKD.res)
+
+# extract the hedge ratio
+CNY.HKD.hr <- as.numeric(CNY.HKD$coefficients[1])
+
+# Create the spread(percent change data)
+CNY.HKD.spread.train <- CurrDataPer.Train$YUAN - (CNY.HKD.hr * CurrDataPer.Train$HKD)
+
+# compute the statistics of the spread (percent change data)
+CNY.HKD.mean.train <- as.numeric(mean(CNY.HKD.spread.train, na.rm=T))
+CNY.HKD.sd.train <- as.numeric(sd(CNY.HKD.spread.train, na.rm = T))
+CNY.HKD.upperThr <- CNY.HKD.mean.train + 1.96 * CNY.HKD.sd.train
+CNY.HKD.lowerThr <- CNY.HKD.mean.train - 1.96 * CNY.HKD.sd.train
+
+# Visualize the spread (percent change) and thresholds
+plot(CNY.HKD.spread.train, main = "Renminbi vs Hong Kong Dollar spread (per change) training set", type = "l")
+abline(h=CNY.HKD.mean.train, col = "red", lwd = 2)
+abline(h=CNY.HKD.upperThr, col="blue", lwd=2)
+abline(h=CNY.HKD.lowerThr, col="blue", lwd=2)
+
+
+# Pull the dates of the highest and lowest levels of spread (percent change)
+high <- CNY.HKD.spread.train[CNY.HKD.spread.train > CNY.HKD.upperThr]
+low <- CNY.HKD.spread.train[CNY.HKD.spread.train < CNY.HKD.lowerThr]
+CNY.HKD.buys <- which(CNY.HKD.spread.train %in% high)
+CNY.HKD.sells <- which(CNY.HKD.spread.train %in% low)
+
+# Create the spread in price terms
+CNY.HKD.spread.price.train <- CurrClose.Train$YUAN - CNY.HKD.hr * CurrClose.Train$HKD
+# Plot the spread(price) chart with buys and sells marked
+plot(CNY.HKD.spread.price.train, main = "Renminbi vs Hong Kong Dollar spread (price) training set", type = "l")
+abline(v=CNY.HKD.sells, col='red')
+abline(v=CNY.HKD.buys, col='green')
+
+```
+
+#Linear Regression of Mexican Peso v Canadian Dollar
+
+```{r}
+
+MXN.CAD <- lm(CurrDataPer.Train$MXN ~ CurrDataPer.Train$CAD-1)
+summary(MXN.CAD)
+# Look at the residuals
+MXN.CAD.res <- MXN.CAD$residuals
+hist(MXN.CAD.res,20)
+par(mfrow=c(1,1))
+plot(MXN.CAD.res, col = "blue", main = "Residual Plot Mexican Peso vs Canadian Dollar Training")
+acf(MXN.CAD.res)
+
+# extract the hedge ratio
+MXN.CAD.hr <- as.numeric(MXN.CAD$coefficients[1])
+
+# Create the spread(percent change data)
+MXN.CAD.spread.train <- CurrDataPer.Train$MXN - (MXN.CAD.hr * CurrDataPer.Train$CAD)
+
+# compute the statistics of the spread (percent change data)
+MXN.CAD.mean.train <- as.numeric(mean(MXN.CAD.spread.train, na.rm=T))
+MXN.CAD.sd.train <- as.numeric(sd(MXN.CAD.spread.train, na.rm = T))
+MXN.CAD.upperThr <- MXN.CAD.mean.train + 1.96 * MXN.CAD.sd.train
+MXN.CAD.lowerThr <- MXN.CAD.mean.train - 1.96 * MXN.CAD.sd.train
+
+# Visualize the spread (percent change) and thresholds
+plot(MXN.CAD.spread.train, main = "Mexican Peso vs Canadian Dollar spread (per change) training set", type = "l")
+abline(h=MXN.CAD.mean.train, col = "red", lwd = 2)
+abline(h=MXN.CAD.upperThr, col="blue", lwd=2)
+abline(h=MXN.CAD.lowerThr, col="blue", lwd=2)
+
+
+# Pull the dates of the highest and lowest levels of spread (percent change)
+high <- MXN.CAD.spread.train[MXN.CAD.spread.train > MXN.CAD.upperThr]
+low <- MXN.CAD.spread.train[MXN.CAD.spread.train < MXN.CAD.lowerThr]
+MXN.CAD.buys <- which(MXN.CAD.spread.train %in% high)
+MXN.CAD.sells <- which(MXN.CAD.spread.train %in% low)
+
+# Create the spread in price terms
+MXN.CAD.spread.price.train <- CurrClose.Train$MXN - MXN.CAD.hr * CurrClose.Train$CAD
+# Plot the spread(price) chart with buys and sells marked
+plot(MXN.CAD.spread.price.train, main = "Mexican Peso vs Canadian Dollar spread (price) training set", type = "l")
+abline(v=MXN.CAD.sells, col='red')
+abline(v=MXN.CAD.buys, col='green')
+```
+
+#Testing the models
+
+```{r}
+
+```
+
+
