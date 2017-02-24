@@ -43,12 +43,12 @@ CurrDataPer.Test <- CurrDataPer[501:733,]
 
 # This is the actual close prices to be used with the trading signals
 CurrClose.Train <- CurrClose[1:500,]
-Currclose.Test <- CurrClose[501:733,]
+CurrClose.Test <- CurrClose[501:733,]
 
 
 ```
 
-#Using Heirarchical Clustering to find similar pairs
+#Using Hierarchical Clustering to find similar pairs
 
 ```{r}
 # Separate by clusters using 4 different methods
@@ -312,10 +312,143 @@ abline(v=MXN.CAD.sells, col='red')
 abline(v=MXN.CAD.buys, col='green')
 ```
 
-#Testing the models
+#Test the model on Pound v Euro
+
+```{r}
+# Test on Pound v Euro 
+GBP.EUR.spread.test <- CurrDataPer.Test$GBP - (GBP.EUR.hr * CurrDataPer.Test$EUR)
+
+# compute the statistics of the spread (percent change data)
+GBP.EUR.mean.test <- as.numeric(mean(GBP.EUR.spread.test, na.rm=T))
+GBP.EUR.sd.test <- as.numeric(sd(GBP.EUR.spread.test, na.rm = T))
+GBP.EUR.upperThr.test <- GBP.EUR.mean.test + 1.96 * GBP.EUR.sd.test
+GBP.EUR.lowerThr.test <- GBP.EUR.mean.test - 1.96 * GBP.EUR.sd.test
+
+# Visualize the spread (percent change) and thresholds
+plot(GBP.EUR.spread.test, main = "Pound vs Euro spread (per change) testing set", type = "l")
+abline(h=GBP.EUR.mean.test, col = "red", lwd = 2)
+abline(h=GBP.EUR.upperThr.test, col="blue", lwd=2)
+abline(h=GBP.EUR.lowerThr.test, col="blue", lwd=2)
+
+
+# Pull the dates of the highest and lowest levels of spread (percent change)
+high.test <- GBP.EUR.spread.test[GBP.EUR.spread.test > GBP.EUR.upperThr]
+low.test <- GBP.EUR.spread.test[GBP.EUR.spread.test < GBP.EUR.lowerThr]
+GBP.EUR.buys.test <- which(GBP.EUR.spread.test %in% high.test)
+GBP.EUR.sells.test <- which(GBP.EUR.spread.test %in% low.test)
+
+# Create the spread in price terms
+GBP.EUR.spread.price.test <- CurrClose.Test$GBP - GBP.EUR.hr * CurrClose.Test$EUR
+
+# Plot the spread(price) chart with buys and sells marked
+plot(GBP.EUR.spread.price.test, main = "Pound v Euro spread (price) testing set", type = "l")
+abline(v=GBP.EUR.sells.test, col='red')
+abline(v=GBP.EUR.buys.test, col='green')
+```
+
+#Test the model on Australian Dollar vs New Zealand Dollar
 
 ```{r}
 
+# Create the spread (percent change) on Testing dataset 
+AUD.NZD.spread.test <- CurrDataPer.Test$AUD - (AUD.NZD.hr * CurrDataPer.Test$NZD)
+
+# compute the statistics of the spread (percent change data)
+AUD.NZD.mean.test <- as.numeric(mean(AUD.NZD.spread.test, na.rm=T))
+AUD.NZD.sd.test <- as.numeric(sd(AUD.NZD.spread.test, na.rm = T))
+AUD.NZD.upperThr.test <- AUD.NZD.mean.test + 1.96 * AUD.NZD.sd.test
+AUD.NZD.lowerThr.test <- AUD.NZD.mean.test - 1.96 * AUD.NZD.sd.test
+
+# Visualize the spread (percent change) and thresholds
+plot(AUD.NZD.spread.test, main = "Australia v New Zealand spread (per change) testing set", type = "l")
+abline(h=AUD.NZD.mean.test, col = "red", lwd = 2)
+abline(h=AUD.NZD.upperThr.test, col="blue", lwd=2)
+abline(h=AUD.NZD.lowerThr.test, col="blue", lwd=2)
+
+
+# Pull the dates of the highest and lowest levels of spread (percent change)
+high.test <- AUD.NZD.spread.test[AUD.NZD.spread.test > AUD.NZD.upperThr]
+low.test <- AUD.NZD.spread.test[AUD.NZD.spread.test < AUD.NZD.lowerThr]
+AUD.NZD.buys.test <- which(AUD.NZD.spread.test %in% high.test)
+AUD.NZD.sells.test <- which(AUD.NZD.spread.test %in% low.test)
+
+# Create the spread in price terms
+AUD.NZD.spread.price.test <- CurrClose.Test$AUD - AUD.NZD.hr * CurrClose.Test$NZD
+
+# Plot the spread(price) chart with buys and sells marked
+plot(AUD.NZD.spread.price.test, main = "Australia v New Zealand spread (price) testing set", type = "l")
+abline(v=AUD.NZD.sells.test, col='red')
+abline(v=AUD.NZD.buys.test, col='green')
 ```
 
+#Test the model on Chinese Renminbi vs Hong Kong Dollar
 
+```{r}
+# Create the spread (percent change) on Testing dataset 
+CNY.HKD.spread.test <- CurrDataPer.Test$YUAN - (CNY.HKD.hr * CurrDataPer.Test$HKD)
+
+# compute the statistics of the spread (percent change data)
+CNY.HKD.mean.test <- as.numeric(mean(CNY.HKD.spread.test, na.rm=T))
+CNY.HKD.sd.test <- as.numeric(sd(CNY.HKD.spread.test, na.rm = T))
+CNY.HKD.upperThr.test <- CNY.HKD.mean.test + 1.96 * CNY.HKD.sd.test
+CNY.HKD.lowerThr.test <- CNY.HKD.mean.test - 1.96 * CNY.HKD.sd.test
+
+# Visualize the spread (percent change) and thresholds
+plot(CNY.HKD.spread.test, main = "Chinese Renminbi vs Hong Kong Dollar spread (per change) testing set", type = "l")
+abline(h=CNY.HKD.mean.test, col = "red", lwd = 2)
+abline(h=CNY.HKD.upperThr.test, col="blue", lwd=2)
+abline(h=CNY.HKD.lowerThr.test, col="blue", lwd=2)
+
+
+# Pull the dates of the highest and lowest levels of spread (percent change)
+high.test <- CNY.HKD.spread.test[CNY.HKD.spread.test > CNY.HKD.upperThr]
+low.test <- CNY.HKD.spread.test[CNY.HKD.spread.test < CNY.HKD.lowerThr]
+CNY.HKD.buys.test <- which(CNY.HKD.spread.test %in% high.test)
+CNY.HKD.sells.test <- which(CNY.HKD.spread.test %in% low.test)
+
+# Create the spread in price terms
+CNY.HKD.spread.price.test <- CurrClose.Test$YUAN - CNY.HKD.hr * CurrClose.Test$HKD
+
+# Plot the spread(price) chart with buys and sells marked
+plot(CNY.HKD.spread.price.test, main = "Chinese Renminbi vs Hong Kong Dollar spread (price) testing set", type = "l")
+abline(v=CNY.HKD.sells.test, col='red')
+abline(v=CNY.HKD.buys.test, col='green')
+```
+
+#Test the model on Mexican Peso v Canadian Dollar
+
+```{r}
+# Create the spread (percent change) on Testing dataset 
+MXN.CAD.spread.test <- CurrDataPer.Test$MXN - (MXN.CAD.hr * CurrDataPer.Test$CAD)
+
+# compute the statistics of the spread (percent change data)
+MXN.CAD.mean.test <- as.numeric(mean(MXN.CAD.spread.test, na.rm=T))
+MXN.CAD.sd.test <- as.numeric(sd(MXN.CAD.spread.test, na.rm = T))
+MXN.CAD.upperThr.test <- MXN.CAD.mean.test + 1.96 * MXN.CAD.sd.test
+MXN.CAD.lowerThr.test <- MXN.CAD.mean.test - 1.96 * MXN.CAD.sd.test
+
+# Visualize the spread (percent change) and thresholds
+plot(MXN.CAD.spread.test, main = "Mexican Peso v Canadian Dollar spread (per change) testing set", type = "l")
+abline(h=MXN.CAD.mean.test, col = "red", lwd = 2)
+abline(h=MXN.CAD.upperThr.test, col="blue", lwd=2)
+abline(h=MXN.CAD.lowerThr.test, col="blue", lwd=2)
+
+
+# Pull the dates of the highest and lowest levels of spread (percent change)
+high.test <- MXN.CAD.spread.test[MXN.CAD.spread.test > MXN.CAD.upperThr]
+low.test <- MXN.CAD.spread.test[MXN.CAD.spread.test < MXN.CAD.lowerThr]
+MXN.CAD.buys.test <- which(MXN.CAD.spread.test %in% high.test)
+MXN.CAD.sells.test <- which(MXN.CAD.spread.test %in% low.test)
+
+# Create the spread in price terms
+MXN.CAD.spread.price.test <- CurrClose.Test$MXN - MXN.CAD.hr * CurrClose.Test$CAD
+
+# Plot the spread(price) chart with buys and sells marked
+plot(MXN.CAD.spread.price.test, main = "Mexican Peso v Canadian Dollar spread (price) testing set", type = "l")
+abline(v=MXN.CAD.sells.test, col='red')
+abline(v=MXN.CAD.buys.test, col='green')
+```
+
+#Summary
+
+We have used the unsupervised method of Hierarchical Clustering to separate currency data into similar pairs. From there we used linear regression modeling to find relationships between the pairs. Although the R-squareds do not give us a tight correlation, we can develop trading rules to take advantage of the dissimilarity in the pairs. When the daily percent change spread deviates outside of the 95% confidence interval of the mean of the spread, we can see trading opportunities on the chart of the price spread.
