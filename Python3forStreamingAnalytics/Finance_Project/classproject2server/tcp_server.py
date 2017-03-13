@@ -1,4 +1,5 @@
-#  paste this in the terminal
+# in terminal, cd to Finance_project, cd into classproject2server
+#  then, paste this in the terminal
 #  python tcp_server.py -p 9995 -f finance/finance.csv -t 1
 
 
