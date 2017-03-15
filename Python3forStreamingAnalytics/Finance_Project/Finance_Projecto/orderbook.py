@@ -33,7 +33,8 @@ class Orderbook:
                     order_['Action'] = order['Action']
                     order_['News'] = order['News']
                 else:
-                    print("order doesn't exist, cant modify")
+                    pass
+                    #print("order doesn't exist, cant modify")
         except Exception as e:
             print(str(e))
 
