@@ -1,0 +1,107 @@
+---
+title: "Assignment4Navarro"
+author: "John Navarro"
+date: "May 1, 2017"
+output: pdf_document
+---
+# SARIMA modeling of tollway data
+
+```{r, warning=FALSE, include=FALSE}
+library(tseries)
+library(forecast)
+library(TSA)
+```
+
+## 1. Use ARIMA(p,d,q) model to forecast. 
+
+Find the model returned by R auto.arima(). Change the values of p and q and determine the best model using AICc and BIC. Do AICc and BIC select the same model as the best model?
+```{r}
+# Read in datasset
+
+df.hourly <- read.csv("C:/Users/JohntheGreat/Documents/MSCA/TimeSeries/Week4_ARIMA/tollway_hourly.csv", header=TRUE, sep=",")
+#head(df.hourly)
+df.hourly.test <- read.csv("C:/Users/JohntheGreat/Documents/MSCA/TimeSeries/Week4_ARIMA/tollway_test.csv", header=TRUE, sep=",")
+
+# Create training and test time series with daily and weekly frequencies
+
+ts.daily.train <- ts(df.hourly$I80E, frequency = 24)
+ts.weekly.train <- ts(df.hourly$I80E, frequency = 168)
+ts.daily.test <- ts(df.hourly.test$I80E, frequency = 24)
+ts.weekly.test <- ts(df.hourly.test$I80E, frequency = 168)
+
+# Check for training set for stationarity
+
+adf.test(ts.daily.train)
+adf.test(ts.weekly.train)
+
+# Show data and acf pacf
+
+tsdisplay(ts.daily.train)
+tsdisplay(ts.weekly.train)
+
+# Using auto.arima, we get specifications(2,0,3) AICc=4455.88, BIC=4482.77
+auto.arima(ts.daily.train, seasonal = FALSE)
+
+# Check for the model which has the lowest AICc, turn off stepwise to check all models
+best.AICc<- auto.arima(ts.daily.train, seasonal=FALSE, stepwise =FALSE,ic=c("aicc"), max.p = 5,max.q = 5,max.order = 10)
+best.AICc
+# Check for model which has the lowest BIC, turn off stepwise to check all models
+best.BIC <- auto.arima(ts.daily.train, seasonal=FALSE, stepwise=FALSE, ic=('bic'), max.p=5, max.q=5, max.order=10)
+best.BIC
+```
+
+Here we see that by using the AICc and BIC criterion, they both result in the model with specifications (3,0,5) with non-zero mean.
+
+## 2. Use day of the week seasonal ARIMA(p,d,q)(P,Q,D)s model to forecast for July 1 (which is a Monday)
+
+```{r}
+# Using auto.arima
+
+weekly.model <- auto.arima(ts.weekly.train, seasonal= TRUE)
+summary(weekly.model)
+forecast.weekly.model <- forecast(weekly.model, h=24)
+forecast.weekly.model$mean
+plot(forecast.weekly.model, ylab='Number of cars at I80E exit', xlab='Hours')
+
+# Calculate and plot the forecasting errors
+error.weekly <- c()
+for (i in 1:24){
+  error.weekly[i] <- df.hourly.test$I80E[i] - forecast.weekly.model$mean[i]
+}
+plot(error.weekly, main='Weekly Seasonality Forecast Errors', ylab = 'Actual - Forecast', xlab = 'Hours')
+```
+
+## Part 3 - Use hour of the day seasonal ARIMA (p,d,q)(P,D,Q)s model to forecast for the hours 8:00, 9:00, 17:00 and 18:00 on July 1
+
+```{r}
+daily.model <- auto.arima(ts.daily.train, seasonal= TRUE)
+summary(daily.model)
+forecast.daily.model <- forecast(daily.model, h=24)
+forecast.daily.model$mean
+plot(forecast.daily.model, ylab='Number of cars at I80E exit', xlab='Hours')
+
+# Calculate and plot the forecasting errors
+error.daily <- c()
+for (i in 1:24){
+  error.daily[i] <- df.hourly.test$I80E[i] - forecast.daily.model$mean[i]
+}
+plot(error.daily, main='Daily Seasonality Forecast Errors', ylab = 'Actual - Forecast', xlab = 'Hours')
+forecast.daily.model$mean[c(8,9,17,18)]
+
+```
+
+## Part 4 - For the July 1 8:00, 9:00, 17:00 and 18:00 forecasts, which model is better (part 2 or part 3) ?
+
+```{r}
+# SSE for Model 2
+SSE.weekly <- sum(error.weekly[c(8,9,17,18)]^2)
+SSE.weekly
+
+# SSE for Model 3
+SSE.daily <- sum(error.daily[c(8,9,17,18)]^2)
+SSE.daily
+```
+
+By comparing SSE of the 4 specific hourly predictions, we can see that Model 2 does a better job of predicting. This makes sense because this model takes into account the weekly seasonality of traffic patterns. While Model 3 doesn't differenciate between weekdays and weekends. Since the problem is to forecast for July 1, which is a Sunday, then model 3 puts too much importance on the seasonal daily data.
+
+The only concerning prediction for Model 2 is the forecast for hours 19:00 and 20:00. The forecasted number of cars drops dramatically, and then recovers. If we look back in the data, we can see on the previous Sunday (6/24) there were 0 cars that came through the exit at 19:00 and only 253 cars that came through at 20:00. This could be due to a malfunction in the counter or possible if the exit ramp was shut down. Unfortunately, there are only two Sundays to input into the SARIMA model. To account for this we could possibly average out the car counts from the surrounding times, and rerun SARIMA.
