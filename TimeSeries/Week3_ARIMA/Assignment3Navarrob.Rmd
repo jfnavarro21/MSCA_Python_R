@@ -1,0 +1,189 @@
+---
+title: "Assignment3Navarro"
+author: "John Navarro"
+date: "April 19, 2017"
+output: pdf_document
+---
+# ARIMA modeling
+
+## 1. Use datasets  to build ARMA or ARIMA models for UN and GDP
+
+```{r, warning=FALSE, include=FALSE}
+library(tseries)
+library(forecast)
+library(TSA)
+```
+
+```{r}
+# Read in datasset
+df <- read.csv("C:/Users/JohntheGreat/Documents/MSCA/TimeSeries/Week3_ARIMA/Unemployment_GDP_UK.csv", header=TRUE, sep=",")
+head(df)
+
+# Separate into train(1955-1968) and test(1969)
+train <- df[1:56,]
+test <- df[57:60,]
+
+# Take a look  at the UN time series and the GDP time series
+plot(train$UN, type ='l', ylab='Unemployment rate', xlab='Time')
+plot(train$GDP, type ='l', ylab='GDP', xlab='Time')
+
+# Use augmented Dickey-Fuller to test for stationarity
+adf.test(train$UN)
+adf.test(train$GDP)
+
+# Take the first difference of each time series
+diff.train.UN <- diff(train$UN)
+diff.train.GDP <- diff(train$GDP)
+adf.test(diff.train.UN)
+adf.test(diff.train.GDP)
+
+#The first differenced data is not stationary, take the second differenec
+diff2.train.UN <- diff(diff.train.UN)
+diff2.train.GDP <- diff(diff.train.GDP)
+adf.test(diff2.train.UN)
+adf.test(diff2.train.GDP)
+
+# Run ACF on both time series to see if it is an MA process
+acf(diff2.train.UN)
+acf(diff2.train.GDP)
+# Run PACF on both time series to see if it is an AR process
+pacf(diff2.train.UN)
+pacf(diff2.train.GDP)
+
+# Run eacf() on each time series for a suggestion of specifications
+eacf(diff2.train.UN)
+eacf(diff2.train.GDP)
+```
+
+From taking the first and second differences of the time series and by using acf(), pacf() and eacf(), it looks like the best arima specifications for UN are (0,2,0) and the best for GDP are (0,2,1)
+
+```{r}
+# Run auto.arima() for arima model suggestions
+auto.arima(train$UN,  seasonal = FALSE)
+auto.arima(train$GDP, seasonal=FALSE)
+# Run auto.arima() setting the difference to 2
+auto.arima(train$UN, d=2, seasonal = FALSE)
+auto.arima(train$GDP, d=2, seasonal=FALSE)
+```
+
+It looks like the model with the lowest AICc/BIC for UN is (0,2,0), while the model with the lowest AICc/BIC for GDP is (0,1,0)
+
+```{r}
+# Use the calculated arima coefficients from acf(), pacf(), eacf() on the second differenced UN data (0,2,0)
+UN.model1 <- arma(diff2.train.UN, order=c(0,0))
+summary(UN.model1)
+
+# Use the calculated arima coefficients from acf(), pacf(), eacf() on the orginal UN data, letting Arima() do the differencing (0,2,0)
+UN.model2 <- Arima(train$UN, order=c(0,2,0))
+summary(UN.model2)
+
+# Use the recommended arima coefficients from auto.arima() (1,1,0)
+UN.model3 <- Arima(train$UN, order=c(1,1,0))
+summary(UN.model3)
+
+# Use the calculated arima coefficients from acf(), pacf(), eacf() on the second differenced GDP data
+GDP.model1 <- arma(diff2.train.GDP, order=c(0,1))
+summary(GDP.model1)
+
+# Use the calculated arima coefficients from acf(), pacf(), eacf() on the orginal GDP data, letting Arima() do the differencing (0,2,1)
+GDP.model2 <- Arima(train$GDP, order=c(0,2,1))
+summary(GDP.model2)
+
+# Use the recommended arima coefficients from auto.arima() (0,1,0)
+GDP.model3 <- Arima(train$GDP, order=c(0,1,0))
+summary(GDP.model3)
+
+# Here we need to include a drift component in the GDP model
+GDP.model <- Arima(train$GDP, order=c(0,2,1))#, include.drift = TRUE)
+summary(GDP.model)
+```
+
+## 2. Justify why you chose one model over the other.
+
+We know that ARMA models are used on stationary time series, while we can use ARIMA models on non-stationary time series. 
+First we plot the data, we can see that the data does not apppear to be stationary. The Unemployment looks cyclical with a possible trend. While the GDP data has an obvious trend component. 
+Secondly, we can run the augmented Dickey-Fuller test on both time series. The results confirm our suspicions and give us non-significant p-values which does not let us reject the null hypothesis. So, we can say that both time series are non-stationary. 
+We can use acf() and pacf() to determine if the time series are AR or MA processes and take a suggestion for the specifications. We can also use eacf() and auto.arima() to give us suggestions for the specifications of our model.
+Since ARMA model can only be used on stationary data, we will have to difference the data then use ARMA. Alternatively, we can use ARIMA on the original time series which has a differencing component built into the model.
+
+## 3. Use the chosen models to forecast 1969 values of UN and GDP
+
+```{r}
+# Predict 1969 values for UN
+forecast(UN.model, h=4)
+plot(forecast(UN.model, h=4))
+
+# Predict 1969 values for GDP
+forecast(GDP.model2, h=4)
+plot(forecast(GDP.model2, h=4))
+```
+
+## 4. Compare the forecasts with the actual values
+
+```{r}
+# Calculate and plot the errors for 1969 UN
+UN.errors <- c()
+for (i in 1:4){
+  UN.errors[i] = test[i, 3] - forecast(UN.model, h=4)$mean[i]
+}
+print(UN.errors)
+plot(c(1:4),UN.errors,ylab="Actual UN minus Predicted UN", xlab="1969 quarters") 
+abline(h=0, col='blue')
+
+# Calculate the errors for 1969 GDP
+
+GDP.errors <- c()
+for (i in 1:4){
+  GDP.errors[i] = test[i, 4] - forecast(GDP.model, h=4)$mean[i]
+}
+print(GDP.errors)
+plot(c(1:4),GDP.errors,ylab="Actual GDP minus Predicted GDP", xlab="1969 quarters") 
+abline(h=0, col='blue')
+```
+
+## 5. Calculate the Sum of Squared Errors for each model
+
+```{r}
+# Calculate the SSE of UN model
+sum(UN.errors^2)
+
+# Calculate the SSE of the GDP model
+sum(GDP.errors^2)
+```
+
+# Regression Modeling
+
+# 1. UN as the independent and GDP as the dependent variable. Forecast 1969 values, plot the errors and calculate the SSE
+
+```{r}
+lm1 <- lm(GDP ~ UN, data=train)
+new <- data.frame(UN = test$UN)
+predict(lm1, new, interval = "confidence")
+GDP.dep.errors <- c()
+for (i in 1:4){
+  GDP.dep.errors[i] = test[i, 4] - predict(lm1, new, interval = "confidence")[i]
+}
+
+plot(GDP.dep.errors, xlab="1969 quarters", ylab="Actual GDP - Predicted GDP")
+sum(GDP.dep.errors^2)
+```
+
+# 2. GDP as the independent and UN as the dependent variable. Forecast 1969 values, plot the errors and calculate the SSE
+
+```{r}
+lm2 <- lm(UN ~ GDP, data=train)
+new2 <- data.frame(GDP = test$GDP)
+predict(lm2, new2, interval = "confidence")
+UN.dep.errors <- c()
+for (i in 1:4){
+  UN.dep.errors[i] = test[i, 3] - predict(lm2, new2, interval = "confidence")[i]
+}
+
+plot(UN.dep.errors, xlab="1969 quarters", ylab="Actual UN - Predicted UN")
+sum(UN.dep.errors^2)
+
+```
+
+## 3. Compare the 2 models - any reason to believe which should be the independent and the dependent variables
+
+Looking at these 2 linear models, they both have low R-squareds. Looking back at the original plots of UN and GDP, they do not appear to be linearly related. It seems that both models do a poor job of predicting the other variable. If I had to chose, I would say that the Unemployment in the country is a result of the GDP or economic growth.
