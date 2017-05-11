@@ -1,0 +1,76 @@
+---
+title: "TimeSeriesAssignment2"
+author: "John Navarro"
+date: "April 14, 2017"
+output: pdf_document
+---
+
+```{r, warning=FALSE}
+library(tseries)
+library(car)
+```
+
+# 1. Plot the independent variables X2, X3, X4 together in a single plot - what do you conclude in terms of relationship between them?
+```{r}
+df <- read.csv("C:/Users/JohntheGreat/Documents/MSCA/TimeSeries/Week2_ExponentialSmoothing_Regression/Assignment2Data.csv", header=TRUE, sep=",")
+#head(df)
+plot(df$X2, type = "l", col=1, ylab = "in millions", ylim=c(0,25), xlab="Movie Index")
+lines(df$X3, col=2)
+lines(df$X4, col=3)
+legend(1,25,c("Total Production Cost", "Total Promotional Cost", "Total Book Sales"),lty = 1, col = c(1,2,3))
+```
+All three of these variables seem related. But total Production Cost (black line) and Total Promotional Cost (red line) appear more similar than the Total Book Sales (green line).
+
+# 2. Scatter plot among the variables
+```{r}
+pairs(df, labels=c("Box office receipts", "Production", "Promotional", "Book sales"),main = "Scatterplot of Hollywood Movies Variables")
+```
+
+# 3. ADF of the independent variables
+
+```{r}
+adf.movies <- lapply(df[2:4], adf.test)
+adf.movies
+```
+
+The p-values for Production cost(X2) and Promotional cost(X3) have large p-values, we do not reject the null hypothesis. This tells us that these two time series are non-stationary.
+However, the adf test returns a low p-value for Total book sales (X4), so we reject the null hypothesis and we can say that this time series is stationary.
+
+# 4. Regression output - R2 and any other metric you want to mention
+
+```{r}
+lm.movies <- lm(X1~X2+X3+X4, data = df)
+summary(lm.movies)
+print(paste0("Rsquared is ", round(summary(lm.movies)$r.squared, digits=4)))
+```
+
+# 5. Regression coefficients
+
+```{r}
+round(summary(lm.movies)$coefficients[,1], 3)
+
+```
+
+# 6. p-values of the coefficients
+
+```{r}
+round(summary(lm.movies)$coefficients[,4], 4)
+```
+
+# 7. What can you comment about multicollinearity?
+
+```{r}
+round(vif(lm.movies),3)
+```
+
+We can see that Production cost(X2) and Promotional cost(X3) both have values greater than 2.50, this value corresponds to an Rsquared of over 0.60 with the other variables. It would make sense that both of these variables are correlated. As a production studio would tend to spend more money promoting a movie that cost alot to produce. Since none of the VIFs are over 4 we will keep all three variables. If we did choose to drop one, we would drop either X2 or X3, but not both. Since X4 is not a significant variable. 
+
+# 8. Plot the ACF of the residuals
+
+```{r}
+resd <- residuals(lm.movies)
+par(mfrow=c(1,2))
+acf(resd, main="ACF of residuals")
+```
+
+Here we see no significant autocorrelation, since none of the lags are beyond the dashed lines.
