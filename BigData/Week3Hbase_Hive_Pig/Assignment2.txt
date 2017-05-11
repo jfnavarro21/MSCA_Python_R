@@ -1,0 +1,73 @@
+1.  Copy the file into your own directory on Linux server
+
+cp /home/kadochnikov/data/Municipal_Court_Caseload_Information.zip /home/jfnavarr/BigDataAssignment2
+
+2.	Unzip the file
+  
+unzip Municipal_Court_Caseload_Information.zip
+
+3.	Load the file into Hive table
+
+hadoop fs -put /home/jfnavarr/Municipal_Court_Caseload_Information.csv/ /user/jfnavarr/
+  
+use jfnavarr;
+show tables;
+drop table municipal;
+CREATE EXTERNAL TABLE IF NOT EXISTS Municipal (
+    OffenseType STRING,
+    OffenseDate DATE,
+    OffenseTime STRING,
+    OffenseChargeDescription STRING,
+    OffenseStreetName STRING,
+    OffenseCrossStreetCheck STRING,
+    OffenseCrossStreet STRING,
+    SchoolZone STRING,
+    ConstructionZone STRING,
+    CaseClosed STRING)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde' WITH SERDEPROPERTIES ("separatorChar" = ",") 
+STORED AS TEXTFILE 
+tblproperties ("skip.header.line.count"="1");
+
+describe municipal;
+select count(*) from municipal;
+
+4.   Ensure your process the header correctly
+
+select * from municipal limit 10;
+
+5. delete both zipped file and CSV file from Linux machine
+-- in Linux terminal
+
+rm Municipal_Court_Caseload_Information.zip
+rm Municipal_Court_Caseload_Information.csv
+
+6. Calculate the frequency of offences by Offense Case Type
+   
+select municipal.offensetype, count(*) from municipal group by municipal.offensetype
+
+7.	Identify the most frequent offences by Offense Charge Description, descending order
+
+select municipal.offensechargedescription, count(*) as Freqency
+from municipal 
+group by municipal.offensechargedescription 
+order by Freqency desc;
+
+8. 	Output into excel
+
+create table csv_frequency_of_offenses 
+ROW FORMAT delimited fields terminated by ',' 
+lines terminated by '\n' as 
+select municipal.offensetype, count(*) 
+from municipal group by municipal.offensetype;
+
+create table csv_frequency_of_charges 
+ROW FORMAT delimited fields terminated by ',' 
+lines terminated by '\n' as
+select municipal.offensechargedescription, count(*) as Freqency
+from municipal 
+group by municipal.offensechargedescription 
+order by Freqency desc;
+
+-- I downloaded from HUE and pasted the two tables into one .xlsx file that I submitted
+
+
