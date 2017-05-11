@@ -1,0 +1,176 @@
+--Copy and Unzip the file
+cp /home/kadochnikov/data/BX-CSV-Dump.zip /home/jfnavarr/
+unzip BX-CSV-Dump.zip
+
+-- Move files from Linux into HDFS
+hadoop fs -put /home/jfnavarr/BX-Book-Ratings.csv/ /user/jfnavarr/
+hadoop fs -put /home/jfnavarr/BX-Books.csv/ /user/jfnavarr/
+hadoop fs -put /home/jfnavarr/BX-Users.csv/ /user/jfnavarr/
+
+-- Check using Hue, all the files appear in HDFS
+
+-- Create metadata table on Hue using Hive
+-- Create external table for bookratings
+use jfnavarr;
+show tables;
+drop table bookratings;
+create external table bookratings (userid string, isbn string, bookrating int) 
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES ("separatorChar" = ";")
+STORED AS TEXTFILE
+tblproperties ("skip.header.line.count"="1");
+LOAD DATA INPATH '/user/jfnavarr/BX-Book-Ratings.csv' 
+OVERWRITE INTO TABLE bookratings;
+select * from bookratings limit 10;
+
+-- repeat process to create table for books
+
+drop table books;
+show tables;
+create external table books (isbn string, booktitle string, author string, year string,
+publisher string, imageurls string, imageurlm string, imageurll string)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES ("separatorChar" = ";")
+STORED AS TEXTFILE
+tblproperties ("skip.header.line.count"="1");
+LOAD DATA INPATH '/user/jfnavarr/BX-Books.csv'
+OVERWRITE INTO TABLE books;
+select * from books limit 10;
+
+-- repeat process to create table for users
+
+drop table Users;
+show tables;
+create external table users(userid string, location string, age string)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES ("separatorChar" = ";")
+STORED AS TEXTFILE
+tblproperties ("skip.header.line.count"="1");
+
+LOAD DATA INPATH '/user/jfnavarr/BX-Users.csv'
+OVERWRITE INTO TABLE users;
+select * from users limit 10;
+
+-- In HUE, switch to Pig 
+-- In properties add "oozie.action.sharelib.for.pig" and Value: "pig,hcatalog,hive"
+-- In terminal type pig -useHCatalog
+
+SET hcat.bin /usr/bin/hcat;
+REGISTER /opt/cloudera/parcels/CDH/lib/pig/piggybank.jar
+sql drop table jfnavarr.books;
+sql create table jfnavarr.books (isbn string, booktitle string, author string, year int,
+publisher string, imageurls string, imageurlm string, imageurll string);
+
+temp_books = LOAD '/user/jfnavarr/BX-Books.csv' USING 
+org.apache.pig.piggybank.storage.CSVExcelStorage
+(';', 'NO_MULTILINE', 'UNIX', 'SKIP_INPUT_HEADER') as 
+(isbn: chararray, booktitle: chararray, author: chararray, 
+year: int, publisher: chararray, imageurls: chararray, 
+imageurlm: chararray, imageurll: chararray);
+
+STORE temp_books INTO 'jfnavarr.books' USING 
+org.apache.hive.hcatalog.pig.HCatStorer();
+
+-- Create Users TABLE
+
+SET hcat.bin /usr/bin/hcat;
+REGISTER /opt/cloudera/parcels/CDH/lib/pig/piggybank.jar
+sql drop table jfnavarr.users;
+sql create table jfnavarr.users (userid string, location string, age int);
+
+temp_users = LOAD '/user/jfnavarr/BX-Users.csv' USING org.apache.pig.piggybank.storage.CSVExcelStorage(';', 'NO_MULTILINE', 'UNIX', 'SKIP_INPUT_HEADER') as (userid: chararray, location: chararray, age: int);
+
+STORE temp_users INTO 'jfnavarr.users' USING org.apache.hive.hcatalog.pig.HCatStorer();
+
+-- Create bookratings TABLE
+
+SET hcat.bin /usr/bin/hcat;
+REGISTER /opt/cloudera/parcels/CDH/lib/pig/piggybank.jar
+sql drop table jfnavarr.bookratings;
+sql create table jfnavarr.bookratings (userid string, isbn string, bookrating int);
+
+temp_bookratings = LOAD '/user/jfnavarr/BX-Book-Ratings.csv' USING org.apache.pig.piggybank.storage.CSVExcelStorage(';', 'NO_MULTILINE', 'UNIX', 'SKIP_INPUT_HEADER') as (userid: chararray, isbn: chararray, bookrating: int);
+
+STORE temp_bookratings INTO 'jfnavarr.bookratings' USING org.apache.hive.hcatalog.pig.HCatStorer();
+
+-- Join and final calcultions
+
+-- need to join users table and bookratings table by userid and then perform group by calculations
+-- need to calculate the sum, avg, min, max, also #records
+SET hcat.bin /usr/bin/hcat;
+REGISTER /opt/cloudera/parcels/CDH/lib/pig/piggybank.jar
+users1 = LOAD 'jfnavarr.users' USING org.apache.hive.hcatalog.pig.HCatLoader();
+bookratings1 = LOAD 'jfnavarr.bookratings' USING org.apache.hive.hcatalog.pig.HCatLoader();
+-- join the two tables
+A = JOIN users1 BY userid, bookratings1 BY userid;
+-- group by location
+B = GROUP A BY users1::location;
+-- perform calculations on group
+C = FOREACH B GENERATE group as location, 
+	SUM(A.bookratings1::bookrating) as sum_bookrating, 
+	AVG(A.bookratings1::bookrating) as avg_bookrating,
+    MIN(A.bookratings1::bookrating) as min_bookrating,
+    MAX(A.bookratings1::bookrating) as max_bookrating,
+    COUNT(A.bookratings1::bookrating) as num_records;
+-- sort data in descending order
+D = ORDER C BY num_records DESC;
+-- check to see if ok
+DESCRIBE D;
+DUMP D;
+
+-- create an export table
+sql drop table jfnavarr.output;
+sql create table jfnavarr.output (location string, sum_bookrating bigint, avg_bookrating double, min_bookrating int, max_bookrating int, num_records bigint);
+STORE D INTO 'jfnavarr.output' USING org.apache.hive.hcatalog.pig.HCatStorer();
+
+-- downloaded the output from HUE
+
+
+
+
+
+
+
+
+
+
+-- Marek's way
+
+book_ratings = LOAD using
+B =  FOREACH book_ratings GENERATE (chararray)$0 as userID, (int)REPLACE($2, '"','') as rating;
+C JOIN A BY user ID, B by userID;
+D = GROUP C BY location;
+E = FOREACH D GENERATE group as Location, SUM(C.B::rating) as Book_Rating_Sum, AVG(C.B::rating) as Book_Rating_Avg,
+MIN(C.B::rating) as Book_Rating_Min, MAX(C.B::rating) as Book_Rating_Max, COUNT(C) as Rec_Num
+
+
+
+
+
+-- need to join users table and bookratings table by UserID and then perform
+-- group by calculations in HUE
+-- looking for sum, avg, min, max and rec count
+SET hcat.bin /usr/bin/hcat;
+REGISTER /opt/cloudera/parcels/CDH/lib/pig/piggybank.jar
+
+A = LOAD 'jfnavarr.users' USING org.apache.hive.hcatalog.pig.HCatLoader()
+AS (userid:chararray, location:chararray, age:int); 
+--reading a Hive table, need a specific loader
+B = LOAD 'jfnavarr.bookratings' USING org.apache.hive.hcatalog.pig.HCatLoader();
+--join the two tables in HUE
+C = JOIN A BY userid, B BY userid;
+--check join (Hue)
+D = GROUP C BY A::location;
+E = FOREACH D GENERATE SUM(bookratings:bookrating), location;
+
+--E = FOREACH D GENERATE group as location, SUM(C.B::bookrating) as bookratings_sum;
+
+STORE E into 'home/jfnavarr/';
+
+
+A = LOAD 'jfnavarr.users' USING org.apache.hive.hcatalog.pig.HCatLoader()
+AS (userid:chararray, isbn:chararray, bookrating:long); 
+--reading a Hive table, need a specific loader
+describe A;
+
+
