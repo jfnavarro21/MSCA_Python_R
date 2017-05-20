@@ -1,0 +1,146 @@
+---
+title: "Assignment5Navarro"
+author: "John Navarro"
+date: "May 12, 2017"
+output: pdf_document
+---
+
+```{r, warning=FALSE, include=FALSE}
+library(tseries)
+library(forecast)
+library(TSA)
+```
+Load data from TSA package (the package is written by authors Jonathan Cryer and Kung-Sik Chan)
+```{r}
+data(beersales)
+# Preprocess data into a more typical time series (column)
+beersales <- as.data.frame(beersales)
+#dim(beersales)
+
+```
+
+# Part 1 - use ARIMA(p,d,q) model to forecast beer sales for all months of 1990.
+```{r}
+# Seperate beersales data into train and test. Test is 1/90-12/90
+# Make both datasets a time series with monthly frequency
+bs.train <- ts(beersales[1:180,1], frequency = 12)
+bs.test <- ts(beersales[181:192,1], frequency = 12)
+
+# Plot the time series as well as autocorrelations
+tsdisplay(bs.train)
+
+# Run adf test to check for stationarity
+adf.test(bs.train)
+# Run auto.arima to check for specification suggestions
+auto.arima(bs.train, seasonal=FALSE,stepwise = FALSE)
+```
+auto.arima suggests specifications of (4,1,1) with a drift component, we will fit the model with these suggestions
+
+```{R}
+# Fit the beersales data to model1
+model1 <- Arima(bs.train, order =c(4,1,1), include.drift = TRUE)
+
+# Check if the residuals are white noise
+tsdisplay(model1$residuals)
+Box.test(model1$residuals, lag=12, type="Ljung-Box")
+```
+Here we see in the ACF and PACF that there are still several lags with significant auto correlations. The Ljung-Box test is telling us that we can reject the null hypothesis of independent distribution (no corellation). There appears to be more that we are not accounting for in this ARIMA (pdq) model, perhaps it will be accounted for using SARIMA.
+
+## 1A - Use the h-period in forecast() to forecast each month of 1990.
+```{r}
+fc.model1 <- forecast(model1, h=12)
+fc.model1$mean
+plot(fc.model1, ylab='Sales', xlab = 'Date')
+```
+```{r}
+# Calculate and plot the errors 
+error.weekly <- c()
+for (i in 1:12){
+  error.weekly[i] <- bs.test[i] - fc.model1$mean[i]
+}
+plot(error.weekly, main='Seasonality Forecast Errors for 1990', ylab = 'Actual - Forecast', xlab = 'months')
+MSE.fc.model1 <-mean(error.weekly^2)
+MSE.fc.model1
+```
+
+## 1B - Use the monthly data as a continuous time series. Forecast for 1990 Jan, Plug forecast into the time series to forecast for 1990 Feb. And so on and so forth. In other words, h=1 in all the forecasts.
+
+
+```{r}
+#bs.train <- ts(beersales[1:180,1], frequency = 12)
+#length(bs.train)
+
+# Create an empty data frame to store the forecasts
+model2.forecasts <- as.data.frame(matrix(0, nrow =12, ncol=1))
+
+# Use a loop to generate 12 forecasts. In each iteration, 
+#we will append the most recent forecast to the time series  
+for (i in 1:12){
+  model2 <- Arima(bs.train, order =c(4,1,1), include.drift = TRUE)
+  forecast.month <- forecast(model2, h=1)$mean
+  model2.forecasts[i,1] <- forecast.month
+  bs.train <- append(bs.train, forecast.month)
+  #print(length(bs.train))
+}
+model2.forecasts
+
+```
+##Take a look at the errors of model 2
+```{r}
+# Calculate and plot the errors 
+error.weekly.2 <- c()
+for (i in 1:12){
+  error.weekly.2[i] <- bs.test[i] - model2.forecasts$V1[i]
+}
+plot(error.weekly.2, main='Forecast Errors for 1990', ylab = 'Actual - Forecast', xlab = 'months')
+# Calculate the MSE for model 2 forecasts
+MSE.fc.model2 <-mean(error.weekly.2^2)
+MSE.fc.model2
+```
+
+
+## 1C - which of the two above approaches yield the better results in terms of Mean Squared Error 1990?
+
+Looking at both of the approaches gives us very similar forecasts as well as similar MSEs. The original ARIMA model gives us an MSE of 0.7351533 and the step wise ARIMA model gives us an MSE of 0.7358846. So we can see that the first model was marginally more accurate at predicting the 1990 monthly sales.
+
+
+## Part 2 - use month of the year seasonal ARIMA(p,d,q)(P,Q,D)s model to forecast beer sales for all the months of 1990.
+
+```{r}
+# reinitiate the train/test datasets
+bs.train <- ts(beersales[1:180,1], frequency = 12)
+bs.test <- ts(beersales[181:192,1], frequency = 12)
+
+#
+model3 <- auto.arima(bs.train, seasonal=TRUE)
+summary(model3)
+
+# Check if the residuals are white noise
+tsdisplay(model3$residuals)
+Box.test(model3$residuals, lag=12, type="Ljung-Box")
+```
+It looks like the residuals are not showing any significant autocorrelations in ACF/PACF plots. Likewise, the Box-Ljung test is showing that we cannot reject the null hypothesis of independent distribution (have no correlation)
+
+```{r}
+# Now we can use the SARIMA model to forecast the monthly data for 1990
+fc.model3 <- forecast(model3, h=12)
+fc.model3$mean
+plot(fc.model3, ylab='Sales', xlab = 'Date')
+```
+
+```{r}
+# Calculate and plot the errors 
+error.weekly.3 <- c()
+for (i in 1:12){
+  error.weekly.3[i] <- bs.test[i] - fc.model3$mean[i]
+}
+plot(error.weekly.3, main='Seasonality Forecast Errors for 1990', ylab = 'Actual - Forecast', xlab = 'months')
+
+MSE_fc_model_3 <- (sum(error.weekly.3^2))/12
+MSE_fc_model_3
+```
+
+
+## Part 3 - Which model (Part 1 or Part 2) is better to forecast beer sales for each month of 1990 (Jan, Feb, ..., Dec) ? 
+
+By comparing the three models by MSE, we can see that the 3rd model (SARIMA) was the most accurate in predicting the actual sales from 1990. This makes sense because we saw a seasonal correlation in the data that was not accounted for in the first 2 models and was visible in the residuals of those models.
