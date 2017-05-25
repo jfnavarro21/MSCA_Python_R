@@ -1,0 +1,163 @@
+---
+title: "Assignment6Navarro"
+author: "John Navarro"
+date: "May 19, 2017"
+output: pdf_document
+---
+
+```{r, warning=FALSE, include=FALSE}
+library(tseries)
+library(forecast)
+library(TSA)
+library(fracdiff)
+```
+
+Here we are using the gas furnace dataset to study regression with
+ARMA errors. Input gas rate is the independent variable and Output gas
+CO2% is the dependent variable
+
+```{r}
+# source the arma_innovation function
+source("C:/Users/JohntheGreat/Documents/MSCA/TimeSeries/Week6_ARFIMA_ARIMAX/arma_innovation.R")
+
+# read in the dataset
+df <- read.csv("C:/Users/JohntheGreat/Documents/MSCA/TimeSeries/Week6_ARFIMA_ARIMAX/Dataset.csv", header=TRUE, sep=",")
+head(df)
+dim(df)
+# create a time series object
+gas.df.ts <- ts(df)
+tsdisplay(gas.df.ts)
+```
+
+## 1. Use linear regression model - plot the ACF - what can you conclude ?
+
+```{r}
+# Create a regression model for the dataset
+model.lm <- lm(CO2~Input, data=df)
+summary(model.lm)
+
+# Plot the correlations of the residuals
+acf(model.lm$residuals,lag=50)
+pacf(model.lm$residuals,lag=50)
+```
+By looking at the ACF and PACF of the residuals from the regression model, we can determine that the residuals from this model are not independent. There appears to be significant auto correlation until lag 5, which reappears periodically even until the 50th lag. Similarly, with the plot of PACF, we can see significant parital autocorrelations at the first few lags, but it dies off after that. There is one spike around lag, 38, but we can ignore it if it is only one.
+
+## 2. Use ARIMA (0,0,1) model for the residuals. Adjust the Input gas rate and Output CO2 % with the MA coefficient. Combine with the linear regression model. Plot the residuals.
+
+```{r}
+# Use a MA(1) model for the residuals
+model.001 <- Arima(model.lm$residuals, order=c(0,0,1),include.mean = FALSE)
+# Use arma_innovation to get transformed MAcoefficientsandapply 
+# as a linear combination to get x*
+model.001.x <- arma.innovation(df$Input,model.001)
+model.001.y <- arma.innovation(df$CO2, model.001)
+
+# re-run linearregression with x* and y*
+model.001.innovation <- lm(model.001.y ~ model.001.x)
+summary(model.001.innovation)
+
+#Plot the residuals
+tsdisplay(model.001.innovation$residuals)
+```
+
+## 3.Use ARIMA (1,0,0) model for the residuals. Adjust the Input gas rate and Output CO2 % with the AR coefficient. Combine with the linear regression model. Plot the residuals.
+
+```{r}
+# Use an AR(1) model for the residuals
+model.100 <- Arima(model.lm$residuals, order=c(1,0,0),include.mean = FALSE)
+# Use arma_innovation to get transformed AR coefficients and apply 
+# as a linear combination to get x*and y*
+model.100.x <- arma.innovation(df$Input,model.100)
+model.100.y <- arma.innovation(df$CO2, model.100)
+
+# re-run linearregression with x* and y*
+model.100.innovation <- lm(model.100.y ~ model.100.x)
+summary(model.100.innovation)
+
+#Plot the residuals
+tsdisplay(model.100.innovation$residuals)
+```
+
+## 4. Use ARIMA (0,0,2) model for the residuals. Adjust the Input gas rate and Output CO2 % with the MA coefficient. Combine with the linear regression model. Plot the residuals.
+
+```{r}
+# Use a MA(2) model for the residuals
+model.002 <- Arima(model.lm$residuals, order=c(0,0,2),include.mean = FALSE)
+# Use arma_innovation to get transformed MA coefficients and apply 
+# as a linear combination to get x* and y*
+model.002.x <- arma.innovation(df$Input,model.002)
+model.002.y <- arma.innovation(df$CO2, model.002)
+
+# re-run linearregression with x* and y*
+model.002.innovation <- lm(model.002.y ~ model.002.x)
+summary(model.002.innovation)
+
+#Plot the residuals
+tsdisplay(model.002.innovation$residuals)
+```
+
+## 5.Use ARIMA (2,0,0) model for the residuals. Adjust the Input gas rate and Output CO2 % with the AR coefficient. Combine with the linear regression model. Plot the residuals.
+
+```{r}
+# Use an AR(2) model for the residuals
+model.200 <- Arima(model.lm$residuals, order=c(2,0,0),include.mean = FALSE)
+# Use arma_innovation to get transformed AR coefficients and apply 
+# as a linear combination to get x* and y*
+model.200.x <- arma.innovation(df$Input,model.200)
+model.200.y <- arma.innovation(df$CO2, model.200)
+
+# re-run linearregression with x* and y*
+model.200.innovation <- lm(model.200.y ~ model.200.x)
+summary(model.200.innovation)
+
+#Plot the residuals
+tsdisplay(model.200.innovation$residuals)
+```
+
+## 6.Use ARIMA (2,0,2) model for the residuals. Adjust the Input gas rate and Output CO2 % with the AR coefficient. Combine with the linear regression model. Plot the residuals.
+
+```{r}
+# Use an ARMA model for the residuals
+model.202 <- Arima(model.lm$residuals, order=c(2,0,2),include.mean = FALSE)
+# Use arma_innovation to get transformed MA coefficients and apply 
+# as a linear combination to get x* and y*
+model.202.x <- arma.innovation(df$Input,model.202)
+model.202.y <- arma.innovation(df$CO2, model.202)
+
+# re-run linearregression with x* and y*
+model.202.innovation <- lm(model.202.y ~ model.202.x)
+summary(model.202.innovation)
+
+#Plot the residuals
+tsdisplay(model.202.innovation$residuals)
+```
+
+## 7. Use fractional ARIMA model (aka ARFIMA) for the output gas CO2% - plot the residuals, acf and pacf plots of the model. You can use an R package like fracdiff
+```{r}
+# run frac diff on the output variables
+model.frac <- fracdiff(x = gas.df.ts[,2])
+summary(model.frac)
+# extract the d value
+d <- model.frac$d
+d
+# use diffseries to fractionally differentiate the time series with d
+resdiff <- diffseries(gas.df.ts[,2], d)
+# Re run arima on the differenced time series
+auto.arima(resdiff)
+# Create a new arima model with using the order (3,0,2)
+model.arfima <- Arima(resdiff, order = c(3,0,2))
+summary(model.arfima)
+# Display the residuals from the arfima model
+tsdisplay(model.arfima$residuals)
+
+model.arfimax <- Arima(resdiff, xreg=gas.df.ts[,1] , order = c(3,0,2))
+summary(model.arfimax)
+# Display the residuals from the arfima model
+tsdisplay(model.arfimax$residuals)
+
+```
+
+## 8. Which ARIMA model gives the best result in terms of residuals being close to white noise ?
+
+We can see that all the regression models using ARMA errors were not able to remove the autocorrelation in the error terms. However, the arfima model was able to give us residuals that look like white noise.
+
