@@ -4,71 +4,150 @@ author: "John Navarro"
 date: "May 26, 2017"
 output: pdf_document
 ---
+This Assignment deals with the sale prices of trading rights seats at the Chicago Mercantile Exchange. There are three classes of seats CME, IMM, and IOM which confer the rights to trade different sets of commodities traded. CME seat owners can trade everything, IMM seat owners are allowed to trade everything except agricultural products, and IOM seat owners are allowed to trade only in index products and all options.
 
-```{r}
-# read in the dataset
-cmes.df <- read.csv("C:/Users/JohntheGreat/Documents/MSCA/TimeSeries/Week7_StateSpace_VARMA/cmeS.csv", header=TRUE, sep=",")
-head(cmes.df)
-colnames(cmes.df)
-cmes.df$Month[1:3]
+The seat price files are marked as ***S. The files contain the price for which CME seats sold and the date of the sale. As expected, the seat price time series is irregularly spaced in time. 
 
-monthly.cmes.df <- data.frame(matrix(ncol=3, nrow = 156))
-colnames(monthly.cmes.df) <- c("Year", "Month", "price")
+Your task is to adopt an algorithm to create a time series that contains a seat price for each month starting from January 2001 to December 2013. You need to do this for the 3 classes of seats. Note that all 3 seat classes have sale prices for January 2001 so you should not have any start up issues. Please clearly explain why you adopted your algorithm and what other alternatives you may have considered and why you rejected the alternatives.
 
-# Fill row of monthly.cmes.df
-monthly.cmes.df$Year[1] = 2001
-monthly.cmes.df$Month[1] = 1 
-monthly.cmes.df$price[1] = mean(subset(cmes.df, Month == 1 & Year == 2001)$price)
-head(monthly.cmes.df)
+### Load the packages
 
-monthly.cmes.df$Year[4] = 2001
-monthly.cmes.df$Month[4] = 4 
-monthly.cmes.df$price[4] = mean(subset(cmes.df, Month ==4 & Year == 2001)$price)
-head(monthly.cmes.df, 12)
-
-
-# looping through 1:12 months only for year 2001
-# if month = month from first df, then fill in row
-# else if month != month, gives error because the month doesnt exist
-# integer(0)
-for (month in 1:12){
-  if (cmes.df$Year == 2001){
-    if(month == (subset(cmes.df, Month == month & Year==2001))$Month){
-      monthly.cmes.df$price[month] = mean(subset(cmes.df, Month == month & Year == 2001)$price)
-      monthly.cmes.df$Month[month] = month
-      monthly.cmes.df$Year[month] = 2001
-    
-    }
-    else {
-      monthly.cmes.df$price[month] <- monthly.cmes.df$price[month-1]
-      monthly.cmes.df$Month[month] = month
-      monthly.cmes.df$Year[month] = 2001
-    }
-    
-  }  
-}
-head(monthly.cmes.df, 12)
-
-
-
-# try a different way
-cmes.df <- read.csv("C:/Users/JohntheGreat/Documents/MSCA/TimeSeries/Week7_StateSpace_VARMA/cmeS.csv", header=TRUE, sep=",")
-
-for (month in 1:12){
-  if (cmes.df$Year == 2002){
-    if (month == cmes.df$Month[month]){
-      print("month is there")
-    }
-      else if (month < cmes.df$Month[month]){
-        newrow <- c(NA, 2002, month, 300, 1)
-        cmes.df <- rbind(cmes.df[1:month-1,],newrow, cmes.df[-(1:month-1),])
-      }
-      else if (month > cmes.df$Month[month]){
-        newrow <- c(NA, 2002, month, 400, 1)
-        cmes.df <- rbind(cmes.df[1:month-1,],newrow, cmes.df[-(1:month-1),])
-      }
-  }
-}
-head(cmes.df,13)
+```{r, warning=FALSE, include=FALSE}
+# Load packages
+library(zoo)
+library(tseries)
+library(xts)
+library(TSA)
 ```
 
+### Load the datasets
+
+```{r}
+# read in the datasets
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/TimeSeries/Week7_StateSpace_VARMA/"
+imm <- read.csv(paste0(datapath, "immS.csv"))
+iom <- read.csv(paste0(datapath, "iomS.csv"))
+cme <- read.csv(paste0(datapath, "cmeS.csv"))
+
+# View the data
+head(imm)
+head(iom)
+head(cme)
+colnames(cme)
+
+# Create uniform time series for imm data
+unif.imm <- as.data.frame(matrix(0, nrow = 156, ncol=4))
+colnames(unif.imm) <- c("Date", "Year", "Month", "Seat Price")
+
+# populate matrix
+unif.imm$Date <- seq(from = as.Date(as.yearmon("2001-01")), to = as.Date(as.yearmon("2013-12")),by= c("month"))
+unif.imm$Year <- format(unif.imm$Date, "%Y")
+unif.imm$Month <- format(unif.imm$Date, "%m")
+
+# make columns of original imm data into date objects
+imm$DateOfSale <- as.Date(imm$DateOfSale, format = '%m/%d/%Y')
+imm$Year <- format(imm$DateOfSale, "%Y")
+imm$Month <- format(imm$DateOfSale, "%m")
+
+# loop through the uniform imm data frame
+for (i in 1:156) {
+  curr.year <- unif.imm[i, "Year"]
+  curr.month <- unif.imm[i, "Month"]
+  
+  # subset the original data by year and month
+  temp <- subset(imm, Year == curr.year  & Month == curr.month)
+  
+  if (nrow(temp) < 1) {
+    unif.imm[i, "Seat Price"] <- imm[max.row, "price"]
+  } else if (nrow(temp)==1) {
+    max.row <- as.numeric(rownames(temp))
+    unif.imm[i, "Seat Price"] <- temp$price
+  } else if(nrow(temp) > 1) {
+    max.row <- as.numeric(max(rownames(temp)))
+    unif.imm[i, "Seat Price"] <- mean(temp$price)
+  }
+}
+options(scipen = 999)
+plot(y = unif.imm$`Seat Price`,x = unif.imm$Date,type = 'l', main = "Uniform IMM Price Data", ylab = "Price", xlab="Date")
+
+
+```
+
+### Create uniform time series for IOM data
+
+```{r}
+unif.iom <- as.data.frame(matrix(0, nrow = 156, ncol=4))
+colnames(unif.iom) <- c("Date", "Year", "Month", "Seat Price")
+
+# populate matrix
+unif.iom$Date <- seq(from = as.Date(as.yearmon("2001-01")), to = as.Date(as.yearmon("2013-12")),by= c("month"))
+unif.iom$Year <- format(unif.iom$Date, "%Y")
+unif.iom$Month <- format(unif.iom$Date, "%m")
+
+# make columns of original iom data into date objects
+iom$DateOfSale <- as.Date(iom$DateOfSale, format = '%m/%d/%Y')
+iom$Year <- format(iom$DateOfSale, "%Y")
+iom$Month <- format(iom$DateOfSale, "%m")
+
+# loop through the uniform iom data frame
+for (i in 1:156) {
+  curr.year <- unif.iom[i, "Year"]
+  curr.month <- unif.iom[i, "Month"]
+  
+  # subset the original data by year and month
+  temp <- subset(iom, Year == curr.year  & Month == curr.month)
+  
+  if (nrow(temp) < 1) {
+    unif.iom[i, "Seat Price"] <- iom[max.row, "price"]
+  } else if (nrow(temp)==1) {
+    max.row <- as.numeric(rownames(temp))
+    unif.iom[i, "Seat Price"] <- temp$price
+  } else if(nrow(temp) > 1) {
+    max.row <- as.numeric(max(rownames(temp)))
+    unif.iom[i, "Seat Price"] <- mean(temp$price)
+  }
+}
+options(scipen = 999)
+plot(y = unif.iom$`Seat Price`,x = unif.iom$Date,type = 'l', main = "Uniform IOM Price Data", ylab = "Price", xlab="Date")
+```
+
+### Create uniform time series for CME data
+
+```{r}
+unif.cme <- as.data.frame(matrix(0, nrow = 156, ncol=4))
+colnames(unif.cme) <- c("Date", "Year", "Month", "Seat Price")
+
+# populate matrix
+unif.cme$Date <- seq(from = as.Date(as.yearmon("2001-01")), to = as.Date(as.yearmon("2013-12")),by= c("month"))
+unif.cme$Year <- format(unif.cme$Date, "%Y")
+unif.cme$Month <- format(unif.cme$Date, "%m")
+
+# make columns of original cme data into date objects
+cme$DateOfSale <- as.Date(cme$DateOfSale, format = '%m/%d/%Y')
+cme$Year <- format(cme$DateOfSale, "%Y")
+cme$Month <- format(cme$DateOfSale, "%m")
+
+# loop through the uniform cme data frame
+for (i in 1:156) {
+  curr.year <- unif.cme[i, "Year"]
+  curr.month <- unif.cme[i, "Month"]
+  
+  # subset the original data by year and month
+  temp <- subset(cme, Year == curr.year  & Month == curr.month)
+  
+  if (nrow(temp) < 1) {
+    unif.cme[i, "Seat Price"] <- cme[max.row, "price"]
+  } else if (nrow(temp)==1) {
+    max.row <- as.numeric(rownames(temp))
+    unif.cme[i, "Seat Price"] <- temp$price
+  } else if(nrow(temp) > 1) {
+    max.row <- as.numeric(max(rownames(temp)))
+    unif.cme[i, "Seat Price"] <- mean(temp$price)
+  }
+}
+options(scipen = 999)
+plot(y = unif.cme$`Seat Price`,x = unif.cme$Date,type = 'l', main = "Uniform CME Price Data", ylab = "Price", xlab="Date")
+
+```
+
+In order to create a uniform time series with this data, we needed to deal with the two situations of missing data and of multiple data. For the missing data, I chose to use the previous month's price, since during a time series, you do not know any future prices and can only make an assumption based on past prices. In the case of multiple data per month, I took the average of data points in a given month, so that each sale was given equal weight.
