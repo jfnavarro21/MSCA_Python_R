@@ -111,6 +111,11 @@ ts.analysis("ATL", "Regular Season", 2011)
 
 LAL_1989 <- subset(game.log.basic, Team == "LAL" & Season == 1989 & GameType == "RegularSeason")
 LAL_1989_Period <- periodogram(ts(LAL_1989$Tm))
+LAL_1989_Period$freq
 max_freq <- LAL_1989_Period$freq[which.max(LAL_1989_Period$spec)]
+top_freq <- LAL_1989_Period$freq[which(LAL_1989_Period$spec>15000)]
+top_freq
+(top_freq)^-1
 seasonality <- 1/max_freq
 print(seasonality)
+sea <- apply(top_freq, )
