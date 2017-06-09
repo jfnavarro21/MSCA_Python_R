@@ -118,4 +118,15 @@ top_freq
 (top_freq)^-1
 seasonality <- 1/max_freq
 print(seasonality)
-sea <- apply(top_freq, )
+
+
+
+
+# Multivariate model
+team.name = "ATL"
+season = 1989
+
+
+team.year <- subset(game.log.all, Team == team.name & Season == season & GameType == "RegularSeason")
+
+
