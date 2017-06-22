@@ -1,0 +1,104 @@
+---
+title: "NonLinearWorkshop1"
+author: "John Navarro"
+date: "April 26, 2017"
+output: pdf_document
+---
+
+```{r}
+
+Linear.Model.Data<-read.csv(file="C:/Users/JohntheGreat/Documents/MSCA/PastClasses/NonLinear/Week1MLE/Week1ProjectData.csv",header=TRUE,sep=",")
+Linear.Model.Data[1:10,]
+Linear.Model.Data.Frame<-as.data.frame(Linear.Model.Data)
+
+```
+
+# Estimate the model using lm() and glm()
+
+```{r}
+Linear.Model.Data.lm <- lm(Output~Input, data=Linear.Model.Data.Frame)
+Linear.Model.Data.glm <- glm(Output~Input, family=gaussian(link="identity"),data=Linear.Model.Data.Frame)
+#compare the names of the object elements in both fits
+names(Linear.Model.Data.lm)
+names(Linear.Model.Data.glm)
+summary(Linear.Model.Data.lm)
+summary(Linear.Model.Data.glm)
+```
+
+## Compare the model objects
+
+```{r}
+# coefficients
+cbind(Output.LM=Linear.Model.Data.lm$coefficients, Output.GLM=Linear.Model.Data.glm$coefficients)
+cbind(Output.LM=Linear.Model.Data.lm$residuals, Output.GLM=Linear.Model.Data.glm$residuals)[1:10,]
+(Linear.Model.Data.lm$residuals==Linear.Model.Data.glm$residuals)[1:10]
+sum(abs(Linear.Model.Data.lm$residuals-Linear.Model.Data.glm$residuals)>.00000000001)
+
+# Types of residuals
+Different.Residuals<-cbind(Linear.Model.Data.lm$residuals,
+                           resid(Linear.Model.Data.glm,type="deviance"),
+                           resid(Linear.Model.Data.glm,type="pearson"),
+                           resid(Linear.Model.Data.glm,type="working"),
+                           resid(Linear.Model.Data.glm,type="response"),
+                           Linear.Model.Data.glm$residuals)
+Different.Residuals[1:10,]
+
+apply(Different.Residuals[,-1],2,function(column.vector) sum(abs(column.vector-Different.Residuals[,1])))
+```
+
+## Fitted Values, linear predictors, Deviance
+
+```{r}
+sum(abs(Linear.Model.Data.lm$fitted.values-Linear.Model.Data.glm$linear.predictors))
+Linear.Model.Data.glm$linear.predictors
+#Deviance
+c(From.GLM=Linear.Model.Data.glm$deviance,
+  From.LM=sum(Linear.Model.Data.lm$residuals^2),
+  Function.Deviance=deviance(Linear.Model.Data.lm))
+# AIC
+
+From.AIC.Function<-AIC(Linear.Model.Data.lm)
+AIC.From.glm<-Linear.Model.Data.glm$aic
+c(From.AIC.Function,AIC.From.glm)
+
+# code AIC function
+# Log likelihood
+llk <- ((-500/2)*log(2*3.1416*var(Linear.Model.Data.Frame$Input)^2)) - (1/(2(var(Linear.Model.Data.Frame$Input)^2)))(sum(Linear.Model.Data.Frame$Output-Linear.Model.Data.lm$fitted.values))^2
+
+# AIC function
+AIC.man <- -2*llk +2
+(sum(Linear.Model.Data.Frame$Output-Linear.Model.Data.lm$fitted.values))^2
+```
+
+```{r}
+Linear.Model.Data.Null.lm<-lm(Output~1,data=Linear.Model.Data)
+Linear.Model.Data.Null.lm.SSE<-sum(Linear.Model.Data.Null.lm$residuals^2)
+c(Null.SSE.lm=Linear.Model.Data.Null.lm.SSE,Null.Deviance.glm=Linear.Model.Data.glm$null.deviance)
+
+#Dispersion
+#Linear.Model.Data.glm$dispersionparameter
+
+
+sigma(Linear.Model.Data.lm)
+# you must square sigma of om to get dispersion of glm
+var(Linear.Model.Data.lm$residuals)
+var(Linear.Model.Data.glm$residuals)
+# Take the square root of the variance of the residuals to get the dispersion.
+```
+
+# saturated and null model: log likelihood functions
+
+```{r}
+Null.Log.Likelihood.logLik<-logLik(Linear.Model.Data.Null.lm)
+Null.AIC<-AIC(Linear.Model.Data.Null.lm)
+```
+
+
+
+
+
+
+
+
+
+
