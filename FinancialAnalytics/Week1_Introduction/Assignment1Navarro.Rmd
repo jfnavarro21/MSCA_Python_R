@@ -1,0 +1,38 @@
+---
+title: "FinancialAnalysisHomework1Navarro"
+author: "John Navarro"
+date: "June 23, 2017"
+output: pdf_document
+---
+
+### 1. Read Chapter 1 of the book
+### 2. Download and analyze excess returns of S&P 500
+
+Calculate continuous daily excess returns of SP500("^GSPC") for the period from 1/1/2014 until 12/31/2014 using overnight Fed Funds rates as risk-free rates.
+```{r}
+# Install packages
+suppressWarnings(library(quantmod))
+# Read in the data
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/FinancialAnalytics/Week1_Introduction"
+FedFunds <- read.csv(file=paste(datapath, 'RIFSPFF.csv', sep='/'))
+SP500 <- read.csv(file = paste(datapath, 'FSP500.csv', sep='/'))
+tail(SP500)
+# Calculate the simple daily return
+SP500$simple.excess.return <- SP500$RIFSPFF_N.B - SP500$SP500Returns
+#Calculate the continuous excess return
+SP500.cont.excess.return <- diff(log(SP500$simple.excess.return))
+# Plot the continuous excess return
+plot(SP500.cont.excess.return, type="l", ylab="Excess returns of SP500", xlab = "Date", xaxt="n", main="Continuous Excess Daily Returns of S&P 500")
+axis(1, at=10*(1:25), labels=SP500[10*(1:25),1])
+
+```
+## 3. Download and analyze exchange rates
+
+Answer the smae questions as in Exercise 5 on page 37 as a refresher of statistical analysis skills. Try to do it without using R demo code from the book
+
+1. Download GBP/USD and USD/JPY exchange rates from Oanda using quantmode
+```{r}
+getFX("GBP/USD",src="oanda", from= "2017-01-02", to= "2017-05-31")
+getFX("USD/JPY")
+```
+
