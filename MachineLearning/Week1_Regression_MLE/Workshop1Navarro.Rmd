@@ -1,0 +1,151 @@
+---
+title: "MLWorkshop1Navarro"
+author: "John Navarro"
+date: "June 25, 2017"
+output: pdf_document
+---
+Workshop1: Linear Regression w Large Number of Predictors
+```{r}
+set.seed(8394756)
+Epsilon <- rnorm(500,0,1)
+X <- rnorm(500*500,0,2) # create vector of 250000 random numbers
+dim(X) <- c(500,500)# reshape vector to a matrix
+colnames(X) <- paste0("X",1:500) # name columns "X1,X2,X3...etc"
+slopesSet <- runif(500,1,3) # vector of 500 slopes, random uniform dist of values from 1-3
+# creates a Y matrix, 500 rows, 499 col. 1+X*B +Epsilon
+Y <- sapply(2:500,function(z) 1+X[,1:z]%*%slopesSet[1:z]+Epsilon)
+dim(Y)
+head(X[,1:5])
+head(Y[,1:5])
+head(Epsilon)
+head(slopesSet)
+
+```
+
+## Analysis of accuracy of inference as function of # of predictors
+ Check the summaries of the 1st and 490th model in the series
+ 
+ 
+```{r}
+completeModelDataFrame <- data.frame(Y=Y[,490],X[,1:491])
+dim(completeModelDataFrame)
+m2 <- lm(Y[,1]~X[,1:2])
+m490 <- lm(Y~.,data=completeModelDataFrame)
+plot(coefficients(summary(m490))[-1,4],main="Coefficients'P-Values for 490 Predictors", xlab="Coefficient",ylab="P-Value")
+summary(m2)
+confint(m2)[2,]
+confint(m490)[2,]
+```
+ m490 conf interval is wider than m2. If we add more variables it decreases the accuracy of the predictors in the model
+ 
+## Plot R2 returned by all nested models
+ 
+ 
+ 
+```{r}
+rSquared <- sapply(2:500,function(z) summary(lm(Y~.,data=data.frame(Y=Y[,z-1],X[,1:z])))$r.squared)
+head(rSquared)
+plot(rSquared,type="l",
+     main="Improvement of Fit with Number of Predictors",xlab="Number of Predictors",ylab="Determination Coefficient")
+```
+
+## plot adsjusted r2 returned by all nested models
+```{r}
+adjustedRSquared <- sapply(2:500,function(z) summary(lm(Y~.,data=data.frame(Y=Y[,z-1],X[,1:z])))$adj.r.squared)
+plot(adjustedRSquared,type="l",
+     main="Improvement of Fit with Number of Predictors",xlab="Number of Predictors",ylab="Adjusted R-Squared")
+```
+# plot confidence intervals returned by all nested models
+
+```{r}
+leftConfInt<-suppressWarnings(sapply(2:500,function(z) confint(lm(Y~.,data=data.frame(Y=Y[,z-1],X[,1:z])))[2,1]))
+rightConfInt<-suppressWarnings(sapply(2:500,function(z) confint(lm(Y~.,data=data.frame(Y=Y[,z-1],X[,1:z])))[2,2]))
+matplot(1:490,cbind(leftConfInt[1:490],rightConfInt[1:490]),type="l",lty=1,
+        lwd=2,col=c("red","blue"),main="Confidence Intervals for Beta_1",
+        xlab="Number of Predictors",ylab="95% Confidence Intervals")
+```
+### Using 500 predictors
+
+```{r}
+rSquared500<-sapply(2:500,function(z) 
+  summary(lm(Y~.,data=data.frame(Y=Y[,499],X[,1:z])))$r.squared)
+plot(rSquared500,type="l")
+```
+
+##Conclusions:
+1. As number of predictors grows the quality of fit expressed as R2R2 or adjusted R2R2 continuously improves.
+2. But inference for a fixed predictor becomes less and less accurate, which is shown by the widening confidence interval.
+3. This means that if there is, for example, one significant predictor Xi,1Xi,1, by increasing the total number of predictors (even though they all or many of them may be significant) we can damage accuracy of estimation of the slope for Xi,1Xi,1.
+4. This example shows one problem that DM has to face, which is not emphasized in traditional courses on statistical analysis where only low numbers of predictors are considered.
+
+# Selecting predictors for regression problem
+## Method based on drop1()
+
+```{r}
+m10 <- lm(Y~., data=data.frame(Y=Y[,9],X[,1:10]))
+data.check=data.frame(Y=Y[,9],X[,1:10])
+head(data.check)
+(drop1.m10 <- drop1(m10))
+bestToDrop <- drop1.m10[which.min(drop1.m10$AIC),]
+bestToDrop
+min(drop1.m10$AIC)
+```
+ Use step to search for a bettermodel
+ 
+ 
+```{r}
+(step.m10 <- step(m10, direction = "both"))
+length(step.m10$coefficients)
+# stepgives thesmaeresults since it usese drop1()
+```
+
+Relative Importance measures
+
+```{r}
+suppressMessages(library(relaimpo))
+(metrics10 <- calc.relimp(m10, type=c("lmg", "first", "last", "betasq", "pratt")))
+# compare sums of several mearures w r2 of the model w 10 predictors
+c(sum10.lmg=sum(metrics10@lmg),
+  sum10.first=sum(metrics10@first),
+  sum10.last=sum(metrics10@last),
+  m10.R2=summary(m10)$r.squared)
+# lmg matches R2, first is lower, last is higher
+```
+```{r}
+#Rank predictors
+(metrics10.lmg.rank<-metrics10@lmg.rank)
+cbind(Predictors=colnames(X[,1:10])[order(metrics10.lmg.rank)],Slopes=slopesSet[1:10][order(metrics10.lmg.rank)])
+```
+
+ranks correspond to the order of the coefficients used in simulation, the larger the coeff, the 
+higher the rank. this is expcected. All predictors were simulated as independent samples from the same distribution
+
+Compare growth of the determination coefficient in cases of original order of predictors and the imporved order
+
+```{r}
+orderedPedictors<-X[,1:10][,order(metrics10.lmg.rank)]
+dim(orderedPedictors)
+originalR2.10<-sapply(2:10,function(z) summary(lm(Y~.,data=data.frame(Y=Y[,9],X[,1:z])))$r.squared)
+improvedR2.10<-sapply(2:10,function(z) summary(lm(Y~.,data=data.frame(Y=Y[,9],orderedPedictors[,1:z])))$r.squared)
+matplot(2:10,cbind(originalR2.10,improvedR2.10),type="l",lty=1,lwd=2,col=c("black","red"),
+        main="Improvement of Fit with Number of Predictors",
+        xlab="Number of Predictors",ylab="Determination Coefficient")
+legend("bottomright",legend=c("Original","Improved"),lty=1,lwd=2,col=c("black","red"))
+```
+
+Regsubsets
+```{r}
+suppressMessages(library(leaps))
+subsets<-regsubsets(x=X[,1:10],y=Y[,9])
+summary(subsets)$which
+summary(subsets)$rsq
+```
+
+Adding more predictors
+
+
+
+
+
+
+
