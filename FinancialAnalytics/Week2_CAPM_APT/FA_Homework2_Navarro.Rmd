@@ -1,0 +1,98 @@
+---
+title: 'Homework Assignment #2'
+author: "John Navarro"
+date: "July 3, 2017"
+output: pdf_document
+---
+
+This assignment hels understanding of Markowitx efficient frontier, CAPm and APT models
+
+Create efficient frontier, CAPM model and APT model for a group of stocks representing health care sector and industrial sector.
+```{r, warning=FALSE, include=FALSE}
+# Install packages
+suppressWarnings(library(quantmod))
+```
+The names of the selected companies are in the file Industrial_Health_Names.csv
+The period of observation is from="2014-7-1", to="2015-7-1"
+
+For the sector indices use SPDR XLV (health care sector) and XLI (industrial sector)
+For the broad market index use SPY
+For the risk free rate use Fed Funds effective rate
+
+Note that it may not be possible to find interpretation of PCA factors in terms of real assets or indices. In such cases it is possible to use PCA factors without interpretation
+```{r}
+# Read list of stock names
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/FinancialAnalytics/Week2_CAPM_APT"
+SP500.Industrials.Health <- read.csv(file=paste(datapath,"Industrials_Health_Names.csv",sep="/"),header=F)
+SP500.Industrials.Health.names <- as.character(SP500.Industrials.Health[,1])
+# Pull daily data for stocks
+suppressWarnings(getSymbols(SP500.Industrials.Health.names, from="2014-7-1",to="2015-7-1"))
+# Pull daily data for XLV
+suppressWarnings(getSymbols("XLV",from="2014-7-1",to="2015-7-1"))
+# Pull daily data for XLI
+suppressWarnings(getSymbols("XLI",from="2014-7-1",to="2015-7-1"))
+# Pull daily data for SPY
+suppressWarnings(getSymbols("SPY",from="2014-7-1",to="2015-7-1"))
+# Pull Fed Funds data as the risk free rate
+FedFunds.BD<-read.csv(file=paste(datapath,"RIFSPFF_NB.csv",sep="/"))
+FedFunds.BD.2014<-FedFunds.BD[format(as.Date(FedFunds.BD[,1],"%m/%d/%Y"),"%Y")=="2014",]
+
+
+```
+ 
+### Part 1. Create Efficient Frontier model
+
+```{r}
+# Calculate mean and standard deviation for each stock
+Mean.Sd.SP500.companies<-cbind(sd=sapply(SP500.Industrials.Health.names,function(z) sd(diff(log(get(z)[,6])),na.rm=TRUE)),
+                               mean=sapply(SP500.Industrials.Health.names,function(z) mean(diff(log(get(z)[,6])),na.rm=TRUE)))
+# Calculate the mean and standard deviation for SPY (broad index)
+Mean.Sd.SPY<-c(sd(diff(log(SPY[,6])),na.rm=TRUE),mean(diff(log(SPY[,6])),na.rm=TRUE))
+# Calculate the mean of Fed Funds
+Mean.FedFunds<-mean(FedFunds.BD.2014[,2])/100/365
+
+
+```
+Plot the SPY companies on standard deviation-mean diagram, with SPY and risk-free rate
+
+```{r}
+plot(Mean.Sd.SP500.companies,ylab="Mean",xlab="Sd",pch=19,xlim=c(0,.03))
+points(Mean.Sd.SPY[1],Mean.Sd.SPY[2],col="red",pch=19)
+points(0,Mean.FedFunds,col="green",pch=19)
+lines(c(0,Mean.Sd.SPY[1]),c(mean(FedFunds.BD.2014[,2])/100/365,Mean.Sd.SPY[2]))
+text(Mean.Sd.SP500.companies,labels=rownames(Mean.Sd.SP500.companies),cex=.5,pos=2)
+text(Mean.Sd.SPY[1],Mean.Sd.SPY[2],labels="SPY",cex=.5,col="red",pos=2)
+```
+
+## 2. Build CAPM model
+
+```{r}
+FedFunds.BD.2014.daily<-FedFunds.BD.2014[,2]/100/365
+SP500.companies.betas<-as.matrix(sapply(SP500.Industrials.Health.names,function(z) 
+  lm(I(diff(log(get(z)[,6]))-FedFunds.BD.2014.daily)~-1+I(diff(log(SPY[,6]))-FedFunds.BD.2014.daily))$coefficients))
+rownames(SP500.companies.betas)<-rownames(Mean.Sd.SP500.companies)
+head(SP500.companies.betas)
+
+```
+
+Create the CAPM diagram
+
+```{r}
+plot(SP500.companies.betas, Mean.Sd.SP500.companies[,2], ylab="SP500.companies.returns",pch=19,xlim=c(0,2))
+points(1,Mean.Sd.SPY[2],col="red",pch=19)
+points(0,Mean.FedFunds,col="green",pch=19)
+lines(c(0,1),c(Mean.FedFunds,Mean.Sd.SPY[2]))
+text(SP500.companies.betas,Mean.Sd.SP500.companies[,2],labels=rownames(Mean.Sd.SP500.companies),cex=.5,pos=2)
+text(1,Mean.Sd.SPY[2],labels="SPY",cex=.5,col="red",pos=2)
+```
+
+##3. Arbitrage Pricing Theory
+
+```{r}
+
+```
+
+
+
+
+
