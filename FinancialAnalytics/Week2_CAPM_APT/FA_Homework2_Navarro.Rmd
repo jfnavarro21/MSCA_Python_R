@@ -35,7 +35,8 @@ SP500.Industrials.Health.names <- as.character(SP500.Industrials.Health[,1])
 # suppressWarnings(getSymbols("SPY",from="2014-7-1",to="2015-7-1"))
 # Pull Fed Funds data as the risk free rate
 FedFunds.BD<-read.csv(file=paste(datapath,"RIFSPFF_NB.csv",sep="/"))
-FedFunds.BD.2014<-FedFunds.BD[format(as.Date(FedFunds.BD[,1],"%m/%d/%Y"),"%Y")=="2014",]
+# Extract FedFunds data for 7/1/14 to 7/1/15
+FedFunds.BD.2014<-FedFunds.BD[15094:15345,]
 
 ```
  
@@ -75,6 +76,7 @@ text(Mean.Sd.SPY[1],Mean.Sd.SPY[2],labels="SPY",cex=.5,col="red",pos=2)
 ```{r}
 # De-annualize Fed fund returns
 FedFunds.BD.2014.daily<-FedFunds.BD.2014[,2]/100/365
+dim(FedFunds.BD.2014)
 # Extract the coefficients from linear models : Asset return - Risk free return = Beta(Market return - risk free return)
 SP500.companies.betas<-as.matrix(sapply(SP500.Industrials.Health.names,function(z) 
   lm(I(diff(log(get(z)[,6]))-FedFunds.BD.2014.daily)~-1+I(diff(log(SPY[,6]))-FedFunds.BD.2014.daily))$coefficients))
@@ -103,20 +105,21 @@ text(1,Mean.Sd.SPY[2],labels="SPY",cex=.5,col="red",pos=2)
 
 ```{r}
 # Calculate the log differences for each stock
-Stock.Portfolio.Returns <- matrix()
-for (i in SP500.Industrials.Health.names){
-  Stock.Portfolio.Returns <- cbind(Stock.Portfolio.Returns, diff(log((get(i)[,6])))[-1,])
-  
-}
-#dim(Stock.Portfolio.Returns)
-#head(Stock.Portfolio.Returns)
-#Stock.Portfolio.Returns <- as.data.frame(matrix(NA,nrow=251, ncol=16))
+#Stock.Portfolio.Returns <- matrix()
 #for (i in SP500.Industrials.Health.names){
-#  Stock.Portfolio.Returns[,i] <- diff(log((get(i)[,6])))[-1,]
-  
+#  Stock.Portfolio.Returns <- cbind(Stock.Portfolio.Returns, diff(log((get(i)[,6])))[-1,])
 #}
 
-Stock.Portfolio.Returns <- Stock.Portfolio.Returns[,2:17]
+
+Stock.Portfolio.Returns <- as.data.frame(matrix(NA,nrow=251, ncol=length(SP500.Industrials.Health.names)))
+colnames(Stock.Portfolio.Returns) <- SP500.Industrials.Health.names
+for (i in SP500.Industrials.Health.names){
+  Stock.Portfolio.Returns[,i] <- diff(log((get(i)[,6])))[-1,]
+}
+dim(Stock.Portfolio.Returns)
+head(Stock.Portfolio.Returns)
+
+#Stock.Portfolio.Returns <- Stock.Portfolio.Returns[,2:17]
 # Calculate the returns for SPY
 SPY.returns<-as.matrix(diff(log(SPY$SPY.Adjusted))[-1])
 # Calculate the returns for XLV
