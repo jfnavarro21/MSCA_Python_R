@@ -1,0 +1,163 @@
+---
+title: "Homework Assignment 2"
+author: "John Navarro"
+date: "July 6, 2017"
+output: pdf_document
+---
+This project helps understanding application of PCA to regression analysis
+
+## preparation for test
+
+Create a simulated data set formultiple regression analysis with 500 predictors and slopes uniformly distributed on [-1,3]
+
+```{r}
+set.seed(8394756)
+Epsilon <- rnorm(500,0,1)
+X <- rnorm(500*500,0,2)
+dim(X) <- c(500,500)
+colnames(X) <- paste0("X",1:500)
+slopesSet <- runif(500,-.1,3)
+Y <- sapply(2:500, function(z) 1+X[,1:z]%*%slopesSet[1:z]+Epsilon)
+head(X[,1:5])
+head(Y[,1:5])
+head(Epsilon)
+head(slopesSet,10)
+min(slopesSet)
+
+# Fit the linear model with 491 predictors
+#Consider model with output Y[,490] and inputs X[,1:491].
+completeModelDataFrame <- data.frame(Y=Y[,490],X[,1:491])
+m490 <- lm(Y~., data=completeModelDataFrame)
+
+#Relative measures
+suppressWarnings(library(relaimpo))
+#run PCA for 491 predictors w no response
+PCA.491 <- prcomp(X[,1:491])
+#calculate importance graph
+impo <- PCA.491$sdev/(sum(PCA.491$sdev))
+plot(impo, type="l")
+plot(summary(PCA.491)$importance[3,], type ="l")
+
+#extract factors and rotation
+factorLoadings <- PCA.491$rotation
+dim(factorLoadings)
+factorScores<- X[,1:491]%*%PCA.491$rotation[,1:491]
+zeroLoading <- PCA.491$center
+
+# Fit LM with 491 factors as predictors
+# Calculate relative importance using measure first
+# Create dataframe factors491Data w 491 predictors being PCA factors
+factors491Data <- data.frame(Y=Y[,490], factorScores)
+# Fit LM m491.PCA to factors 491Data
+m491.PCA <- lm(Y~., factors491Data)
+# Calculate rel. imp. of the factors for explaining the response using measure first
+metrics.first.PCA <- calc.relimp(m491.PCA, type="first")
+
+# Check that the sum of rel. imp. measures for all predictors is the same as the 
+# determination coeff of the lm w/ the original predictors m490
+c(sumMetrics.first=sum(metrics.first.PCA@first), m490.rsquared=summary(m490)$r.squared)
+
+# Re order PCA factors using rel imp measure first
+metrics.first.PCA.rank <- metrics.first.PCA@first.rank
+orderedFactors <- factorScores[,order(metrics.first.PCA.rank)]
+head(colnames(orderedFactors),100)
+
+# Plot the diagram for selection of number of reordered predictors for a given determination coefficient
+orderedPCAData <- data.frame(Y=Y[,490],orderedFactors)
+head(orderedPCAData[,1:7])
+orderR2<-sapply(2:491,function(z) summary(lm(Y~.,data=orderedPCAData[,1:z]))$r.squared)
+plot(orderR2,type="l",xlab="Number of Ordered PCA Factors")
+orderR2[150:200]
+```
+
+
+#### Week 2 Test
+```{r}
+# Read in the data for the test
+dataPath <- "C:/Users/JohntheGreat/Documents/MSCA/MachineLearning/Week2_PCA"
+# assign to data
+data <- read.table(paste(dataPath,"test_sample.csv",sep="/"),header=T)
+# Look at the dimensions of the data
+dim(data)
+head(data)
+tail(data)
+```
+
+#### Step 1. Fit linear regression models mj
+
+with increasing number j of regressors and calculate determination coefficient for those models
+Find the smalles # of regressors making det coeff of linear model greater than 0.9
+Denote it as N.orig
+
+```{r}
+# Fit linear models, extract Rsquared from each lm
+#dim(data)
+Y <- data[,1]
+X <- data[,2:492]
+#length(Y) # 500 rows 1 column
+#dim(X) # 500rows 491 columns
+
+# original code
+#rSquared<-sapply(2:500,function(z) 
+
+rSquared<-sapply(2:491,function(z) summary(lm(Y~.,data=data.frame(Y=Y,X[,1:z])))$r.squared)
+#head(rSquared)
+plot(rSquared,type="l",
+     main="Improvement of Fit with Number of Predictors",xlab="Number of Predictors",ylab="Determination Coefficient")
+rSquared[325:330]
+length(rSquared)
+N.orig <- 329 # 328th element of rSquared has 329 predictors
+```
+
+##### Step 2. Apply method of using PCA factors as meta features to select smallest number of them making determination coeff greater than 90%
+
+Denote as N.PCA that smallest number of reordered PCA factors that are necessary for given level of det coeff
+
+Define model dimensionality reduction as difference N.orig - N.PCA
+
+Enter model dimensionality reduction and determination coefficent of the model with N.PCA selected most important meta features in the corresponding fields of quiz tab
+
+```{r}
+#Relative measures
+suppressWarnings(library(relaimpo))
+#run PCA for 491 predictors w no response
+PCA.491 <- princomp(data[,2:492])
+
+#extract loadings and scores
+factorLoadings <- PCA.491$loadings
+dim(factorLoadings)
+
+factorScores<- PCA.491$scores
+zeroLoading <- PCA.491$center
+
+# Combine into dataframe
+pca.data <- data.frame(Y=data[,1], factorScores)
+
+# Fit Linear Model
+model.PCA <- lm(Y~., data=pca.data)
+
+# Calculate rel. imp. of the factors for explaining the response using measure first
+metrics.first.PCA <- calc.relimp(model.PCA, type="first")
+
+# Check that the sum of rel. imp. measures for all predictors is the same as the 
+# determination coeff of the lm w/ the original predictors m490
+#c(sumMetrics.first=sum(metrics.first.PCA@first), m490.rsquared=summary(m490)$r.squared)
+
+# Re order PCA factors using rel imp measure first
+metrics.first.PCA.rank <- metrics.first.PCA@first.rank
+orderedFactors <- factorScores[,order(metrics.first.PCA.rank)]
+head(colnames(orderedFactors),100)
+
+
+# Plot the diagram for selection of number of reordered predictors for a given determination coefficient
+orderedPCAData <- data.frame(Y=data[,1],orderedFactors)
+head(orderedPCAData[,1:7])
+orderR2<-sapply(2:491,function(z) summary(lm(Y~.,data=orderedPCAData[,1:z]))$r.squared)
+plot(orderR2,type="l",xlab="Number of Ordered PCA Factors")
+determination.coefficient <- orderR2[150]
+N.PCA <- 150
+model.dimensionality.reduction <- N.orig-N.PCA
+
+#179 and 0.9006022
+```
+
