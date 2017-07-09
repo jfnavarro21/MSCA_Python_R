@@ -1,0 +1,41 @@
+---
+title: "FA Homework 3"
+author: "John Navarro"
+date: "July 8, 2017"
+output: pdf_document
+---
+
+This assignment helps understanding linear models for time series
+
+## 1. Exercise 2 on page 125
+
+Use the file m-dec125910-6111.txt
+```{r}
+# read in data
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/FinancialAnalytics/Week3_TimeSeries"
+da=read.table(paste(datapath,"m-dec125910-6111.txt",sep="/"),header=T)
+head(da)
+dim(da)
+```
+
+
+### For CRSP portfolios of Decile 2, 10 returns test null hypothesis that the first 12 lags of autocorrelations equal zero with 5% level
+
+```{r}
+
+```
+
+
+### Fit ARMA model for returns of Decile 2, perform model checking and write down the fitted model
+
+```{r}
+
+```
+
+
+### Use the fitted model to produce 1- to 12-step ahead forecasts of the series and the associated standard errors of forecasts.
+
+```{r}
+
+```
+
