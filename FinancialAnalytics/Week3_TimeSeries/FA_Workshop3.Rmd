@@ -1,0 +1,324 @@
+---
+title: "workshop"
+author: "John Navarro"
+date: "July 6, 2017"
+output: pdf_document
+---
+Stochastic processes and stationarity
+```{r}
+Seeds<-(1:6)*10
+Realizations<-rep(NA,6)
+
+for (i in 1:6) {
+  set.seed(Seeds[i])
+  Realizations[i]<-rnorm(1)
+}
+rbind(Seeds,Realizations)
+plot(Seeds,Realizations,pch=16,col=c("red","blue","green","purple","cyan","magenta"))
+legend("bottomright",
+       lty=1,
+       legend=c("Outcome.1","Outcome.2","Outcome.3","Outcome.4","Outcome.5","Outcome.6"),
+       lwd=2,
+       col=c("red","blue","green","purple","cyan","magenta"))
+```
+Nowfor the same seeds generate 6different trajectories of stochastic process
+```{r}
+Realizations.process<-cbind(1:300,matrix(NA,300,6))
+colnames(Realizations.process)<-c("Time",
+                               "Trajectory.1",
+                               "Trajectory.2",
+                               "Trajectory.3",
+                               "Trajectory.4",
+                               "Trajectory.5",
+                               "Trajectory.6")
+Realizations.phases<-rep(NA,6)
+for (i in 1:6) {
+  set.seed(Seeds[i])
+  Realizations.phases[i]<-rnorm(1)
+  Realizations.process[,i+1]<-3+(Realizations.process[,1]+
+                                   30*sin((Realizations.process[,1]+20*Realizations.phases[i]*pi)/20))
+}
+matplot(Realizations.process[,1],
+        Realizations.process[,-1],
+        type="l",
+        col=c("red","blue","green","purple","cyan","magenta"),
+        lty=1,
+        xlab="Time",
+        ylab="Trajectories",
+        main="Trajectories for 6 Different Outcomes",
+        lwd=2)
+legend("topleft",
+       lty=1,
+       legend=colnames(Realizations.process)[-1],
+       lwd=2,
+       col=c("red","blue","green","purple","cyan","magenta"))
+```
+
+#### 2. ACF
+
+Estimate ACF ofdecile10 ofCRSP portfolio from Jan1967 to Dec 2009 monthly.
+Read the data from m-dec12910.txt
+```{r}
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/FinancialAnalytics/Week3_TimeSeries"
+da=read.table(paste(datapath,"m-dec12910.txt",sep="/"),header=T)
+head(da)
+dim(da)
+# Select the Decile 10 returns
+d10=da$dec10
+dec10=ts(d10,frequency=12, start=c(1967,1))
+# unneccesary    par(mfcol=c(1,1))
+# Plot the time series and its ACF
+plot(dec10, xlab="year", ylab="returns")
+title(main="Simple returns")
+acf(d10, lag=24)
+
+```
+
+Test H0: p12 = 0, againstHA:p12!=0 which represents an effect of persistent positive returns observed for stocks in January.
+Conpare the tt statistic p1*2T^-1/2 with 5% critical value qnorm(0.975, 0.1)
+```{r}
+f1=acf(d10, lag=24)
+f1$acf
+tt=f1$acf[13]*sqrt(516)
+c(tt, qnorm(0.975,0,1))
+
+```
+Since tt islarger than the critical value, then we should reject H0 and this means that ther is a seasonality at lag 12
+
+Conduct BoxLjung test to check H0: all correlations =0
+the data are returns of IBM stock from Jan 1967 to Dec 2009
+Read the file, transform it into log returns, plot ACF and run BoxLjung test
+```{r}
+da=read.table(paste(datapath, "m-ibmsp6709.txt",sep="/"),header=T)
+head(da)
+dim(da)
+# transform to log returns
+ibm <- da$ibm
+lnibm <- log(ibm+1)
+# plot acf of returns and log returns....looks similar
+plot(acf(ibm, lag=100))
+acf(lnibm, lag=100)
+# run Box Ljung test
+Box.test(ibm, lag=12, type="Ljung")
+Box.test(lnibm, lag=12, type="Ljung")
+
+
+```
+
+Since both pvalues returned are not significant, we cannot reject the H0 of no correlations in IBM stock returns
+
+Check Box-Ljung on CRSP decile 10 portfolio
+```{r}
+Box.test(d10, lag=12, type="Ljung")
+Box.test(d10, lag=24, type="Ljung")
+
+```
+Since both pvalues are small, we reject the H0, there exists serial correlation in the portfolio returns
+
+### 3 AR Models
+
+Consider the time series of GNP in file q-gnp4710.txt
+```{r}
+da=read.table(paste(datapath,"q-gnp4710.txt",sep="/"),header=T)
+head(da)
+# Create GNP and its log
+G=da$VALUE
+LG=log(G)
+# Create the log returns
+gnp=diff(LG)
+# Create the time index
+# Plot the growth and the log returns
+dim(da)
+# Create the time series
+tdx=c(1:253)/4+1947
+head(tdx)
+# Plot original data  G vs tdx
+plot(tdx, G, xlab="year", ylab="GNP", type="l")
+# plot log diff vs tdx
+plot(tdx[2:253], gnp, type="l", xlab="year",ylab="growth")
+abline(h=0)
+```
+Almost all quarterly returns are positive
+The largest negative return is in 2008, the Great Recession
+Calculate ACF and PACF
+
+```{r}
+par(mfcol=c(1,2))
+acf(gnp, lag=12)
+pacf(gnp, lag=12)
+```
+Since we see exp decat in ACF, and PACF shows non zero coeff at lag 3, we will fit AR(3) model
+```{r}
+(m1 <- arima(gnp, order=c(3,0,0)))
+```
+The characteristic AR polynomial is
+1 - 0.4386z - 0.2063z^2 + 0.156z^3 = 0
+
+Check if the residuals behave like white noise
+
+```{r}
+tsdiag(m1,gof=12)
+```
+ since the pvalues are small for lags 9-12, means that with these number of lags selected, the hypothesis that all autocorrelations are equal to zero has to be rejected
+ 
+ Create coefficients of the characteristic polynomial as:
+ 
+```{r}
+p1=c(1, -m1$coef[1:3])
+```
+Then find its roots
+```{r}
+(r1 <- polyroot(p1))
+k=2*pi/acos(1.616116/1.832674) # compute length of the period
+k
+```
+there are 3 roots of characteristic polynomial, one is real, the other 2 are complex. The real root, 
+
+The US economy tends to have pseudo cycles with average period of 12.8 quarters
+Check how th AR order would be selected automatically w AIC
+```{r}
+mm1 <- ar(gnp, method = "mle")
+mm1$order
+names(mm1)
+print(mm1$aic, digits=3)
+```
+Plotting the AIC numbers
+```{r}
+aic=mm1$aic  # For plotting below.
+length(aic)
+plot(c(0:12),aic,type='h',xlab='order',ylab='aic')
+lines(0:12,aic,lty=2)
+```
+### Model Checking
+Read monthly value weighted return index fro CRSP in the file m-ibm3dx2608.txt
+```{r}
+vw=read.table(file=paste(datapath,"m-ibm3dx2608.txt",sep="/"),header=T)[,3]
+head(vw)
+```
+Identify possible order
+```{r}
+par(mfrow=c(1,2))
+acf(vw,lag=15)
+pacf(vw,lag=15)
+```
+ Fit AR(3) model
+ 
+```{r}
+(m3 <- arima(vw,order=c(3,0,0)))
+```
+compute the intercept phi
+```{r}
+# intercept
+(1-.1158+.0187+.1042)*mean(vw)
+# standard error of residuals
+sqrt(m3$sigma2)
+# Use Box Ljung to see if residuals have autocorrelation
+Box.test(m3$residuals,lag=12,type="Ljung")
+```
+The resulting p value is too large, so we cannot reject the hypothesis that all autocorrelations are equal to zero
+
+Calculate adjusted p-valuefor the same statistic
+```{r}
+(pv=1-pchisq(16.35,9))
+```
+Model lag 2 may not be necessary, estimate model w only lags 1 and 3
+
+```{r}
+(m3 <- arima(vw, order=c(3,0,0),fixed=c(NA,0,NA,NA)))
+(1-.1136+.1063)*.0089  # compute phi(0)
+# compute resid stand error
+sqrt(m3$sigma2)
+#Ljung box test
+Box.test(m3$residuals, lag=12,type = "Ljung")
+#Adjust to 10
+# Adjusted pvalue
+pv <- 1-pchisq(16.83,10)
+pv
+```
+
+#### 4. MA Models
+Read the monthly returns of CFSP Equal Weighted Index
+```{r}
+da=read.table(file=paste(datapath,"m-ibm3dx2608.txt",sep="/"),header=T)
+head(da)
+ew=da$ewrtn
+# Check ACF and PACF
+par(mfrow=c(1,2))
+acf(ew,lag=15)
+pacf(ew,lag=15)
+
+```
+A candidate model is MA(9)
+```{r}
+m1 <- arima(ew, order=c(0,0,9))
+m1
+# put restrictions on the lags 2,4,5,6,7,8
+m1 <- arima(ew, order=c(0,0,9), fixed = c(NA,0,NA,0,0,0,0,0,NA,NA))
+m1
+```
+
+restrictions improveAIC measure of the model
+
+```{r}
+# Check standard deviation of the residuals
+sqrt(m1$sigma2)
+# Run box ljung test
+Box.test(m1$residuals, lag=12, type="Ljung")
+```
+With unadjusted df we cannot reject the H0
+```{r}
+pv=1-pchisq(17.6,9)
+pv
+```
+Now we see that the null hypothesis is rejected
+use h=986 as origin for predictions to have an out of sample values to check the accuracy of predictions
+```{r}
+m1 <- arima(ew[1:986],order=c(0,0,9),fixed=c(NA,0,NA,0,0,0,0,0,NA,NA))
+m1
+```
+Now predict the time series for 10 steps using the model m1
+```{r}
+prd <- predict(m1,10)
+prd
+```
+```{r}
+cbind(Actual=tail(ew,10),Predicted=as.vector(prd$pred),Standard.Error=as.vector(prd$se))
+```
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+```
+
