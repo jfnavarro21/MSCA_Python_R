@@ -6,6 +6,12 @@ output: pdf_document
 ---
 
 This assignment helps understanding linear models for time series
+```{r, warning=FALSE, include=FALSE}
+library(tseries)
+library(forecast)
+library(TSA)
+```
+
 
 ## 1. Exercise 2 on page 125
 
@@ -19,23 +25,127 @@ dim(da)
 ```
 
 
-### For CRSP portfolios of Decile 2, 10 returns test null hypothesis that the first 12 lags of autocorrelations equal zero with 5% level
+### For CRSP portfolios of Decile 2 and Decile 10 returns test null hypothesis that the first 12 lags of autocorrelations equal zero with 5% level
 
 ```{r}
+# select the Decile 2 returns and transfer to log returns
+d2 <- da$dec2
+lnd2 <- log(d2+1)
+# Plot the time series and its ACF for simple returns
+par(mfcol=c(2,1))
+plot(d2, xlab="year", ylab="returns",type="l")
+title(main = "Simple returns of Decile 2")
+acf(d2, lag=24)
+# Plot the time series and its ACF for log returns
+par(mfcol=c(2,1))
+plot(lnd2, xlab="year", ylab="log returns",type="l")
+title(main = "Log returns of Decile 2")
+acf(lnd2, lag=24)
 
 ```
 
+Portmanteau Test
+```{r}
+# Test the H0 that the first 12 lags of autocorrelations of decile 2 equal zero
+# Use the Ljung Box test for the simple returns
+Box.test(d2, lag=12, type="Ljung")
+# Use the Ljung Box test for the log returns
+Box.test(lnd2, lag=12, type="Ljung")
+
+```
+In the case of simple returns for Decile 2, we cannot reject the null hypothesis of no serial correlations in the returns at the 5% level. Although, the p-value is smaller in the log returns case, we still cannot reject the null hypothesis of no serial correlations in the log returns at the 5% level.
+
+```{r}
+# select the Decile 10 returns and transfer to log returns
+d10 <- da$dec10
+lnd10 <- log(d10+1)
+# Plot the time series and its ACF for simple returns
+par(mfcol=c(2,1))
+plot(d10, xlab="year", ylab="returns",type="l")
+title(main = "Simple returns of Decile 10")
+acf(d10, lag=24)
+# Plot the time series and its ACF for log returns
+par(mfcol=c(2,1))
+plot(lnd10, xlab="year", ylab="log returns",type="l")
+title(main = "Log returns of Decile 10")
+acf(lnd10, lag=24)
+```
+Portmanteau Test
+```{r}
+# Test the H0 that the first 12 lags of autocorrelations of decile 10 equal zero
+# Use the Ljung Box test for the simple returns
+Box.test(d10, lag=12, type="Ljung")
+# Use the Ljung Box test for the log returns
+Box.test(lnd10, lag=12, type="Ljung")
+```
+
+In this case we can see that both results give us p-values that are significant at the 5% level. Therefore, we can reject the null hypothesis and say that there exists serial correlations in the monthly simple returns of the Decile 10 data. We can draw the same conclusion for the log returns of the data as well.
 
 ### Fit ARMA model for returns of Decile 2, perform model checking and write down the fitted model
 
 ```{r}
+d2ts <- ts(d2, frequency = 12)
+par(mfcol=c(1,2))
+acf(d2ts, lag =35)
+pacf(d2ts, lag =35)
+eacf(d2ts) # suggests the best fit is an MA(1)
+auto.arima(d2ts) # suggests the best fit is an MA(1)
+(m11 <- arima(d2ts, order=c(1,0,1)))
+(m1 <- arima(d2ts, order=c(0,0,1)))
+```
+Here we can see that the MA(1,1) model gives us an AIC of-1987.68, while the MA(1) model improves the AIC slightly to -1988.08
+
+Here are the equations for both models:
+ARMA (1,1)
+(1+0.4039B)xt = 0.0093 +(1-0.5265B)at
+MA(1)
+Xt=0.0093 +(1-0.1307)at
+
+Model checking using Ljung-Box
+```{r}
+Box.test(m11$residuals, lag=12, type="Ljung")
+Box.test(m1$residuals, lag=12, type="Ljung")
 
 ```
-
+ Here we can see that the p-values are not significant, and we cannot reject the null hypothesis that the residual have autocorrelation.
 
 ### Use the fitted model to produce 1- to 12-step ahead forecasts of the series and the associated standard errors of forecasts.
 
 ```{r}
-
+# Using the ARMA(1,1) model
+prd <- predict(m11,12)
+cbind(Predicted=as.vector(prd$pred),Standard.Error=as.vector(prd$se))
+# Using the MA(1) model
+prd <- predict(m1,12)
+cbind(Predicted=as.vector(prd$pred),Standard.Error=as.vector(prd$se))
 ```
 
+## 2. Exercise 4 on page 126
+
+Consider the monthly yields of Moody's Aaa & Baa seasoned bonds from
+January 1919 to November, 2011. The data are obtained from FRED of Federal
+Reserve Bank of St. Louis. Consider the log series of monthly Aaa bond yields.
+Build a time series model for the series, including model checking.
+
+```{r}
+# read in data
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/FinancialAnalytics/Week3_TimeSeries"
+da=read.table(paste(datapath,"m-aaa-1911.txt",sep="/"),header=T)
+tail(da)
+dim(da) #1115 4
+lnyld <- log(da$yield/12/100)
+plot(lnyld)
+# Build a time series
+yld.ts <- ts(lnyld, frequency=12)
+par(mfrow=c(1,2))
+acf(yld.ts, lag =35)
+pacf(yld.ts, lag =35)
+eacf(yld.ts) # suggests the best fit is an ARMA(1,1)
+auto.arima(yld.ts) # suggests the best fit is an ARIMA(0,1,1)
+# Build an arima model
+m.011 <- arima(lnyld, order=c(0,1,1))
+summary(m.011)
+# Check the residuals
+Box.test(m.011$residuals, type="Ljung")
+```
+The pvalue is not significant, so we cannot reject the null hypothesis of no serial correlations.
