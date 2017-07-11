@@ -1,0 +1,93 @@
+---
+title: "ML Homework 3"
+author: "John Navarro"
+date: "July 11, 2017"
+output: pdf_document
+---
+
+```{r}
+# Read in data
+suppressWarnings(library(glmnet))
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/MachineLearning/Week3_Shrinkage_Ridge_Lasso"
+data<-read.csv(file=paste(datapath,"test_sample.csv",sep="/"))
+head(data)
+dim(data) # 500x492
+```
+Variable Y was simulated using all predictors X1, X2,...,X491 with randomly selected coefficients from interval [-0.1,3].
+All predictors are simulated independently.
+Hence some of predictors are significant and some are insignificant depending on the value of the corresponding coefficient.
+The goal of this test is to eliminate insignificant predictors of the model
+Y=??0+??1X1+??2X2+.+??491X491+??
+
+
+using:
+
+Lasso regression implemented in the function glmnet() and
+Ordinary regression (function lm()).
+
+### Lasso regression
+As shown in section 3 of workshop use function cv.glmnet() with default parameters in order to find optimal ??min: cv.out$lambda.min.
+Do not forget to set alpha=1 to provide lasso penalty.
+
+Execute set.seed(1) before calling cv.glmnet() in order to make results reproducible.
+```{r}
+# run Lasso on data
+lasso.data <- glmnet(x=data.matrix(data[,2:492]),y=data[,1], alpha=1, nlambda = 100, lambda.min.ratio = .0001)
+plot(lasso.data)
+
+# set seed and use cross validation to find best lambda
+set.seed(1)
+cv.out=cv.glmnet(x=data.matrix(data[,2:492]),y=data[,1], alpha=1)
+plot(cv.out)
+# return best lambda
+(bestlam=cv.out$lambda.min)
+
+
+```
+
+After performing lasso regression with ??=??min find indices of eliminated regression coefficients among (??1,??2.??491)
+```{r}
+# return lasso coefficients
+lasso.coef=predict(lasso.data,type="coefficients",s=bestlam)
+lasso.coef <- lasso.coef[-1]
+indexed.l.c <- cbind(index=seq(1:491), lasso.coef= lasso.coef)
+elim.lasso <- as.data.frame(indexed.l.c[lasso.coef<=0,])
+dim(elim.lasso)
+eliminatedByLasso <- as.vector(elim.lasso$index)
+# removedSlopes<-rep(NA,491)
+# removedSlopes[lasso.coef[-1]==0] <- slopesSet[1:491][lasso.coef[-1]==0]
+# head(removedSlopes,50)
+```
+
+### Linear regression
+Use (two-sided) p-values ("Pr(>|t|)") to decide which coefficients of the linear model should be eliminated.
+Eliminate coefficients for which p-value is greater than 0.050.05.
+Reorder predictors eliminated by the linear model in decreasing order of p-values.
+
+Find indices of insignificant coefficients among (??1,??2.??491)(??1,??2.??491).
+```{r}
+# Fit lm on the data
+lm490 <- lm(Y~., data=data)
+# extract p values of coefficients and merge w indexes
+pvals <- summary(lm490)$coefficients[-1,4]
+indexed.pvals <- cbind(index=seq(1:491), pvals= pvals)
+# sort pvalues into descending order
+indexed.pvals.desc <- as.data.frame(indexed.pvals[order(-pvals), ])
+head(indexed.pvals.desc)
+# Choose only significant pvalues
+elim.pvals <- indexed.pvals.desc[indexed.pvals.desc$pvals > 0.05, ]
+head(elim.pvals)
+dim(elim.pvals)
+# Store significant pvalue indexes as a vector
+eliminatedByLm <- as.vector(elim.pvals$index)
+```
+
+Create outputfile
+```{r}
+res = matrix(c("lasso","lm","",""),ncol=2)
+colnames(res) <- c("model","removed_regressors")
+res[,"removed_regressors"][1] = paste0(eliminatedByLasso,collapse = " ")
+res[,"removed_regressors"][2] = paste0(eliminatedByLm,collapse = " ")
+write.csv(res,"W3answer.csv",quote=FALSE,row.names = F)
+```
+
