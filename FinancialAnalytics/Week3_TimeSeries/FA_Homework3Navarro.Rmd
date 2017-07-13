@@ -30,12 +30,13 @@ dim(da)
 ```{r}
 # select the Decile 2 returns and transfer to log returns
 d2 <- da$dec2
-lnd2 <- log(d2+1)
+d2.ts <- ts(d2,frequency = 12)
+lnd2 <- log(d2.ts+1)
 # Plot the time series and its ACF for simple returns
 par(mfcol=c(2,1))
-plot(d2, xlab="year", ylab="returns",type="l")
+plot(d2.ts, xlab="year", ylab="returns",type="l")
 title(main = "Simple returns of Decile 2")
-acf(d2, lag=24)
+acf(d2.ts, lag=24)
 # Plot the time series and its ACF for log returns
 par(mfcol=c(2,1))
 plot(lnd2, xlab="year", ylab="log returns",type="l")
@@ -44,11 +45,12 @@ acf(lnd2, lag=24)
 
 ```
 
-Portmanteau Test
+The simple returns and log returns of Decile 2 look similar and so do their ACF plots, we will use a Portmanteau Test to check for autocorrelations in the first 12 lags.
+
 ```{r}
 # Test the H0 that the first 12 lags of autocorrelations of decile 2 equal zero
 # Use the Ljung Box test for the simple returns
-Box.test(d2, lag=12, type="Ljung")
+Box.test(d2.ts, lag=12, type="Ljung")
 # Use the Ljung Box test for the log returns
 Box.test(lnd2, lag=12, type="Ljung")
 
@@ -57,29 +59,32 @@ In the case of simple returns for Decile 2, we cannot reject the null hypothesis
 
 ```{r}
 # select the Decile 10 returns and transfer to log returns
-d10 <- da$dec10
-lnd10 <- log(d10+1)
+d10 <- (da$dec10)
+d10.ts <- ts(d10, frequency = 12)
+lnd10 <- log(d10.ts+1)
 # Plot the time series and its ACF for simple returns
 par(mfcol=c(2,1))
-plot(d10, xlab="year", ylab="returns",type="l")
+plot(d10.ts, xlab="year", ylab="returns",type="l")
 title(main = "Simple returns of Decile 10")
-acf(d10, lag=24)
+acf(d10.ts, lag=24)
 # Plot the time series and its ACF for log returns
 par(mfcol=c(2,1))
 plot(lnd10, xlab="year", ylab="log returns",type="l")
 title(main = "Log returns of Decile 10")
 acf(lnd10, lag=24)
 ```
-Portmanteau Test
+
+Again the simple returns and log returns of Decile 10 look similar. Again, we use a Portmanteau Test to check the first 12 lags for autocorrelations of 0.
+
 ```{r}
 # Test the H0 that the first 12 lags of autocorrelations of decile 10 equal zero
 # Use the Ljung Box test for the simple returns
-Box.test(d10, lag=12, type="Ljung")
+Box.test(d10.ts, lag=12, type="Ljung")
 # Use the Ljung Box test for the log returns
 Box.test(lnd10, lag=12, type="Ljung")
 ```
 
-In this case we can see that both results give us p-values that are significant at the 5% level. Therefore, we can reject the null hypothesis and say that there exists serial correlations in the monthly simple returns of the Decile 10 data. We can draw the same conclusion for the log returns of the data as well.
+In this case we can see that both results give us p-values that are significant at the 5% level. Therefore, we can reject the null hypothesis and say that there exists serial correlations in the monthly simple returns of the Decile 10 data. Similarly, we can draw the same conclusion for the log returns of the data as well.
 
 ### Fit ARMA model for returns of Decile 2, perform model checking and write down the fitted model
 
@@ -101,10 +106,12 @@ ARMA (1,1)
 MA(1)
 Xt=0.0093 +(1-0.1307)at
 
-Model checking using Ljung-Box
+Model checking using Ljung-Box and diagnostics
 ```{r}
 Box.test(m11$residuals, lag=12, type="Ljung")
 Box.test(m1$residuals, lag=12, type="Ljung")
+tsdiag(m11)
+tsdiag(m1)
 
 ```
  Here we can see that the p-values are not significant, and we cannot reject the null hypothesis that the residual have autocorrelation.
@@ -119,6 +126,8 @@ cbind(Predicted=as.vector(prd$pred),Standard.Error=as.vector(prd$se))
 prd <- predict(m1,12)
 cbind(Predicted=as.vector(prd$pred),Standard.Error=as.vector(prd$se))
 ```
+
+Since we don't have any out of sample data (post September 2011) for Decile 2, we cannot determine the accuracy of these predictions. However, by looking at them, we see that after the first forecast, the MA(1)  model returns the unconditional mean value as a prediction. While in the ARMA(1,1) forecasts, we can see the half life nature of the correlations. The forecasts will also converge to the unconditional mean value.
 
 ## 2. Exercise 4 on page 126
 
@@ -140,12 +149,22 @@ yld.ts <- ts(lnyld, frequency=12)
 par(mfrow=c(1,2))
 acf(yld.ts, lag =35)
 pacf(yld.ts, lag =35)
+```
+
+The plot of the time series is not stationary. So we may have to difference it.
+ACF looks like a non-stationary series
+
+```{r}
 eacf(yld.ts) # suggests the best fit is an ARMA(1,1)
 auto.arima(yld.ts) # suggests the best fit is an ARIMA(0,1,1)
-# Build an arima model
+# We chose to build an ARIMA(0,1,1) model
 m.011 <- arima(lnyld, order=c(0,1,1))
 summary(m.011)
 # Check the residuals
 Box.test(m.011$residuals, type="Ljung")
+tsdiag(m.011)
 ```
 The pvalue is not significant, so we cannot reject the null hypothesis of no serial correlations.
+
+
+
