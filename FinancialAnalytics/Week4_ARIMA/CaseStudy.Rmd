@@ -1,0 +1,90 @@
+---
+title: "FA Case Study Week 4"
+author: "John Navarro"
+date: "July 13, 2017"
+output: pdf_document
+---
+
+# Retail Gas Case Study
+## 1.1 Data
+```{r}
+suppressWarnings(library(xts))
+suppressWarnings(library(quantmod))
+gasoline<-read.csv(file=paste(datapath,"Weekly U.S. Regular All Formulations Retail Gasoline Prices.csv",sep="/"))
+head(gasoline)
+```
+
+transorm into time series
+```{r}
+g<-xts(gasoline$Gasoline,order.by=as.Date(gasoline$Date,format="%m/%d/%y"))
+plot(log(g))
+dg<-diff(log(g))[-1]
+plot(dg)
+```
+ 
+ ## 1.2 Tasks
+ 1. Analyze ACF and PACF, list candidates
+ 
+```{r}
+par(mfrow=c(1,2))
+acf(dg, lag=50)
+pacf(dg, lag = 50)
+```
+AR model 3, bc of PACF
+2. Use function ar() to identify AR order
+
+```{r}
+ar(dg) # suggests AR(23)
+auto.arima(dg, max.p = 10,max.q = 10, max.order = 30) # suggests(2,0,3)
+eacf(dg)
+```
+3. Fit all candidates, look at AIC
+```{r}
+(m3 <- arima(dg, order=c(3,0,0))) #AIC -7273.94
+(m23<- arima(dg, order=c(23,0,0)))# AIC -7286.77
+(m203<- arima(dg, order=c(2,0,3))) # AIC -7281.15
+```
+4. Analyze signif of estimates of coeff and identify a reduced model w fixed insig coef.
+Fit this model
+```{r}
+m23.b <- arima(dg, order=c(23,0,0), fixed = c(NA,NA,NA,0,NA,0,0,NA,NA,NA,0,0,0,NA,NA,0,NA,NA,NA,0,0,0,NA,NA), transform.pars = F)
+m23.b  # AIC -7299.04
+
+```
+5. Run tsdaig() for all candidates, compare the candidates by number of lags for which B_L NH is rejected
+```{r}
+tsdiag(m3)
+tsdiag(m23)
+tsdiag(m203)
+tsdiag(m23.b)
+```
+6. Compare the candidates by pvalues of Box-Ljung test using Box.test()
+```{r}
+Box.test(m3$residuals, type='Ljung') #pv = 0.875
+Box.test(m23$residuals, type='Ljung') #pv = 0.9524
+Box.test(m203$residuals, type='Ljung') #pv = 0.9959
+Box.test(m23.b$residuals, type='Ljung') #pv = 0.8728
+```
+7. Manually adjust p-values of BL test for residual # dgress of freedom
+```{r}
+
+
+```
+8. Select the best candidate explain
+
+
+m23, with the fixed insig. coeff has the lowest AIC....BOOM!
+
+## 1.3 Use the fitted model for prediction of log retursn for 10 weeks starting from 2/13/12
+
+### 1.3.1 Create short time series that ends on 2/13/12 - forecast origin
+```{r}
+dgShort <- diff(log(first(g,n=1100)))[-1]
+plot(dgShort)
+head(dgShort)
+tail(dgShort)
+
+```
+### 1.3.2 Fit the best candidate model to the short time series to create predictiveModel
+
+
