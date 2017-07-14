@@ -1,0 +1,200 @@
+---
+title: "Workshop2"
+author: "John Navarro"
+date: "July 13, 2017"
+output: pdf_document
+---
+
+# Intervention Model
+
+
+```{r, warning=FALSE, include=FALSE}
+library(tseries)
+library(forecast)
+library(TSA)
+```
+
+
+use on pulse as input into transition function.
+What comes out, something trivial
+shock, then exponential calming down
+
+```{r}
+dat <- read.table(paste(datapath,'q-ko-earns8309.txt',sep = '/'), header=TRUE)
+head(dat)
+# Make time series of earnings
+par(mfrow = c(1, 1), cex = 1.0)
+ko <- ts(dat$value,start=1983,frequency =4)
+plot(ko,type = "b",pch = 21,lwd = 2, col="blue")
+time(ko)
+
+# Take logs
+logko <- log(ko)
+plot(logko, col="blue", type="b", lwd=2)
+```
+
+## 2.2 Observation of intervention
+
+Observe change in the trend on late 1990s
+The suspected intervention moment is last quarter of 1998
+```{r}
+MT <- 63
+(Intervention.Time <- 1983+(MT-1)*0.25)
+ko
+```
+Plot the logged data with suspected intervention quarter marketd
+```{r}
+plot(logko, col = "blue",type = "b",lwd =2)
+abline(v = Intervention.Time,col = "red",lwd = 1)
+text(x = Intervention.Time-2,y = -2.8,labels = as.character(Intervention.Time-.25),col = "red")
+```
+To elminate trend take simple differences and seasonal differences of period 4
+```{r}
+dko <- diff(logko) # first difference
+ddko <- diff(dko,4) # seasonal difference
+plot(dko, col="blue", type="b", lwd=2)
+abline(v=Intervention.Time, col="red", lwd=1)
+text(x = Intervention.Time-2, y= -0.3, labels= (Intervention.Time),col="red")
+```
+
+After taking simple differences there is still significant seasonal component in the data
+```{r}
+plot(ddko, col="blue", type="b",lwd=2)
+abline(v=Intervention.Time, col="red")
+text(x = Intervention.Time-2, y=-0.3, labels=Intervention.Time, col="red")
+```
+
+## 2.3 SARMA model Identification
+
+Observe ACF and PACF of simple and seasonally differenced data
+```{r}
+acf(ddko, lag.max = 48, lwd=4, col="blue", main="ACF")
+pacf(ddko, lag.max=20, lwd=4, col="blue", main="PACF")
+```
+### 2.3.1 SARIMA Model
+
+## 2.4 SARIMA and Intervention model estimation
+
+```{r}
+iAR <- 1
+(I1 <- 1*(seq(ko)>=MT))
+ko.sarima=arimax(logko, order=c(1,1,0),
+                 seasonal = list(order=c(2,1,0),period=4),
+                 xtransf=data.frame(I1,I1),
+                 transfer=list(c(0,0),c(iAR,0)), method = "ML")
+#####################what is transfer=################################
+
+AIC(ko.sarima)
+  
+```
+
+## 2.5 Fitting results
+
+Model estimates
+```{r}
+ko.sarima$coef
+(u_0 <- ko.sarima$coef[4])
+(w_0 <- ko.sarima$coef[(5+iAR)])
+(r_1 <- ko.sarima$coef[(5+iAR-1)])
+plot(logko,type = "p", pch = 20,ylab='Log(KO)',main = 'Fitting results',col= "blue",lwd =2)
+points(fitted(ko.sarima),col="orange",lwd=2)
+```
+
+Residuals
+
+```{r}
+plot(ko.sarima$residuals, type='b',pch=20,main='Residuals',col='blue',lwd=2)
+abline(v=Intervention.Time, col='red',lwd=1)
+text(x=Intervention.Time,y=-0.18,labels=as.character(Intervention.Time),col="red")
+
+```
+
+## 2.6 Show intervention effect
+
+Plot the estimated component mt
+
+```{r}
+#################### what is this equation?###################333
+inter1 <- I1*u_0+filter(I1,filter=r_1,method='recursive',side=1)*(w_0)
+inter1 <- ts(inter1,start=1983, frequency = 4)
+plot(inter1,ylab='Intervention Effects',type='l',col='blue',lwd=2)
+abline(h=0)
+```
+
+## 2.7 Remove intervention effect from the data
+
+```{r}
+logko.interven.deleted <- logko - inter1
+plot(logko.interven.deleted,
+     main= paste('Log(KO).Intervention',
+                 Intervention.Time, 'deleted'),
+      col= 'blue', type='b', lwd=2)
+abline(v=Intervention.Time, col='orange',lwd=1)
+text(x=Intervention.Time-2, y=-3.0, labels= Intervention.Time, col="red")
+```
+
+## 2.8 Discover another intervention
+
+The plot of the data after the estimated intervention has been removed shows another shock that finally ends the episode: aftershock or correction
+
+```{r}
+plot(logko.interven.deleted,
+     main=paste('Log(KO).Intervention',
+                Intervention.Time,'deleted'),
+     col='blue',type='b',lwd=2)
+abline(v=Intervention.Time,col='orange', lwd=1)
+text(x=Intervention.Time-2,y=-3.0,labels= Intervention.Time, col='red')
+abline(v=Intervention.Time+1.5, col="green",lwd=1)
+text(x=Intervention.Time+3,y=-3.0,labels=Intervention.Time+1.5,col="green")
+```
+
+All equations for the second intervention are the same. But as the second intv, we fit pulse function
+```{r}
+MT2 <- 69
+(Intervention.Time2 <- 1983+(MT2-1)*0.25)
+iAR <- 1
+(I2 <- 1*(seq(ko)==MT2))
+### How does this work?#####
+```
+
+```{r}
+ko.sarima2=arimax(logko.interven.deleted,
+                   order=c(1,1,0),
+                   seasonal=list(order=c(2,1,0),period=4),
+                   xtransf=data.frame(I2,I2),
+                   transfer=list(c(0,0),c(iAR,0)),method='ML')
+ko.sarima2$coef
+```
+
+
+
+## 2.9 Calculate Intervention effect
+```{r}
+(u_0 <- ko.sarima2$coef[4])
+(r_1 <- ko.sarima2$coef[5:(5+iAR-1)])
+(w_0<-ko.sarima2$coef[(5+iAR)])
+p2=1*(seq(ko)==MT2)
+inter2<- p2*u_0+ filter(p2,filter=r_1,method='recursive', side=1)*
+  (w_0)
+inter2 <- ts(inter2,start = 1983,frequency = 4)
+
+plot(inter2,main = paste("Intervention Effect. Intervention Time=",Intervention.Time2), ylab='Intervention Effects',
+     type='l',col = "blue",lwd = 2)
+abline(h=0)
+```
+
+## 2.10 REmove second intervention
+
+```{r}
+logko.interven.deleted.inter2 <- logko.interven.deleted - inter2
+plot(logko.interven.deleted.inter2,main = paste("Logko. Interventions ",Intervention.Time,"and",Intervention.Time2, " deleted"), col = "blue",type = "b",lwd =2)
+abline(v= Intervention.Time,col = "red",lwd = 1)
+abline(v= Intervention.Time2,col = "green",lwd = 1)
+text(x = Intervention.Time-2,y = -3,labels = as.character(Intervention.Time), col = "red")
+text(x = Intervention.Time2+2,y = -2,labels = as.character(Intervention.Time2), col = "green")
+```
+
+
+
+
+
