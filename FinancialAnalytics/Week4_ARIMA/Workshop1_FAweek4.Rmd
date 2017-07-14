@@ -1,0 +1,371 @@
+---
+title: "Untitled"
+author: "John Navarro"
+date: "July 13, 2017"
+output: pdf_document
+---
+# 1.Unit root test
+##  1.1GDP
+```{r}
+library(tseries)
+library(TSA)
+library(plotrix)
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/FinancialAnalytics/Week4_ARIMA"
+da=read.table(file=paste(datapath,"q-gdp4708.txt" ,sep="/"),header=T)
+head(da)
+```
+```{r}
+# take the log difference
+gdp=log(da[,4])
+gdpDiff <- diff(gdp)
+par(mfrow=c(2,1))
+plot(gdp)
+plot(gdpDiff, type="l")
+```
+Differenced data looks more stationary
+The have approximately constant mean value
+Estimate ACF
+```{r}
+par(mfrow=c(1,2))
+acf(gdpDiff)
+pacf(gdpDiff)
+```
+Both ACF and PACF don't show quick decay, Identify AR using ar()
+```{r}
+m1 <- ar(gdpDiff, method = 'mle')
+m1$order
+```
+
+Suggests AR(10) model
+Apply ADF test
+```{r}
+adf.test(gdp, k=10, alternative="stationary")
+```
+p value is too high, we cannot reject the null hypothesis of a unit root. This is series is non stationary
+```{r}
+adf.test(gdpDiff, k=10, alternative = "stationary")
+```
+Here we see that the p value is close to being significant. The TS is cose to being stationary, we can only reject the H0 with a 7% confidence level
+
+##1.2 Validating number of differences with direct analysis of roots
+
+Should we take additional differences?
+Model M1 returns the coefficients
+```{r}
+m2 <- arima(gdpDiff, order=c(10,0,0))
+summary(m2)
+#create coefficients of the characteristic polynomial
+p1=c(1,-m1$ar)
+# Then find its roots
+r1=polyroot(p1) # solves the polynomial equation
+r1
+```
+
+```{r}
+# Find real and imaginary parts of the roots and their modula
+r1Re <- Re(r1)
+r1Im <- Im(r1)
+Mod(r1)
+
+```
+Modula show that all roots are outside the unit circle, Visualize the roots and the circe
+```{r}
+plot(r1Re,r1Im,asp=1,xlim=c(min(r1Re),max(r1Re)),ylim=c(min(r1Im),max(r1Im)))
+draw.circle(0,0,radius=1)
+abline(v=0)
+abline(h=0)
+```
+
+### Conclusion
+
+all roots are outside the unit circle: no need to take further differences
+Could wedecide how many differences to take by looking at the original TS gdp?
+```{r}
+m2 <- ar(gdp,aic=F, order.max=20)
+m2$order
+p2=c(1,-m2$ar) # set up the polynomial
+r2=polyroot(p2) # solve the plynomial equation
+r2
+# extract the roots
+r2Re<-Re(r2)
+r2Im<-Im(r2)
+Mod(r2)
+#plot the roots and the unit circle
+plot(r2Re,r2Im,asp=1,xlim=c(min(r2Re),max(r2Re)),ylim=c(min(r2Im),max(r2Im)))
+draw.circle(0,0,radius=1)
+abline(v=0)
+abline(h=0)
+```
+
+ all roots of original gdp data are outside the unit circe, but one differnce is enough
+ 
+ ## 1.3 SP500 example
+ 
+```{r}
+da=read.table(paste(datapath,"dsp55008.txt",sep="/"),header=T)
+head(da)
+```
+
+```{r}
+# use the unasdjusted time series
+sp5 =log(da[,7])
+plot(sp5)
+# Look at acf/pack
+par(mfrow=c(1,2))
+acf(diff(sp5))
+pacf(diff(sp5))
+```
+
+PACF 5th, 12th, 25 26 plenty of lags outside  bars, seasonality? non statioinarity?
+```{r}
+# select ar order
+m2 <- ar(diff(sp5),method="mle")
+m2$order
+```
+
+ar() suggest 2nd order
+adf w 2 lags
+```{r}
+adf.test(sp5,k=2)
+```
+p-value = 0.5708
+NH cant be rejectred. 
+change order to 15, 
+```{r}
+adf.test(sp5,k=15)
+```
+
+pvalue large
+set external predictor and estimate linear model
+```{r}
+dsp5=diff(sp5)
+# create external regressor
+tdx=c(1:length(dsp5))
+# fit AR(2) model with external regressor
+m3=arima(dsp5, order=c(2,0,0),xreg = tdx)
+m3
+m3$coef
+sqrt(diag(m3$var.coef))
+m3$var.coef # shows the covariance matri of the estiamtedcoefficients
+```
+Compute the t-ratio
+```{r}
+tratio=m3$coef/sqrt(diag(m3$var.coef)) # compute t ratio
+tratio
+```
+Both parameters and the constant are significant, but the external regressor is not
+Conclusion: There is a unit root and a positive drift but no time trend
+
+# 2 Exponential smoothing
+###2.1 Example with VIX
+
+```{r}
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/FinancialAnalytics/Week4_ARIMA"
+da=read.table(paste(datapath,"d-vix0810.txt", sep="/"),header=T)
+head(da)
+dim(da) # 496 x 7
+vix=log(da$Close)
+length(vix)
+plot(vix, type="l")
+acf(vix)
+pacf(vix)
+# try differences
+acf(diff(vix))
+pacf(diff(vix))
+```
+
+ 
+ 
+possible candidates: 211 011(exp smoothing)
+ 
+box test 10 lags, chi sqd 10 df
+p value 0.16
+not rejecting, NH was no serial correlation
+reduce df
+```{r}
+# fit ARIMA(0,1,1)
+m1=arima(vix, order=c(0,1,1))
+m1
+Box.test(m1$residuals, lag=10, type='Ljung')
+pp=1-pchisq(14.25,9)
+pp
+# Prediction of this TS using exponential smoothing
+m1.1=arima(head(vix,490),order=c(0,1,1))
+pred<-predict(m1.1,6)$pred
+recent<-tail(vix,16)
+plot(recent)
+points(11:16,pred,col="red")
+```
+LBox test shows that the null hypothesis cannot be rejected. We adjust the degrees of freedom, but get the same results.
+
+
+## 3. Seasonal Models
+### 3.1 Example with Coca-cola from 1983 to 2009:application of airline model
+ 
+```{r}
+###  seasonal models
+da=read.table(file=paste(datapath,"q-ko-earns8309.txt",sep="/"),header=T)
+head(da)
+eps=log(da$value)
+koeps=ts(eps,frequency=4,start=c(1983,1))
+c1=c("2","3","4","1")
+c2=c("1","2","3","4")
+plot(koeps,type='l')
+points(koeps,pch=c1,cex=0.6) 
+# talking logs, very linear and seasonal behavior
+```
+Reasons for using log - transormation
+1. To remove exponential growth of the series: logarithms look linear even after the breakdown in 1998
+2. To stabilize the volatility
+
+```{r}
+# original data
+plot(da$value, type="l")
+```
+
+```{r}
+par(mfcol=c(2,2))
+koeps=log(da$value)
+deps=diff(koeps)
+sdeps=diff(koeps,4)
+ddeps=diff(sdeps)
+acf(koeps,lag=20)
+acf(deps,lag=20)
+acf(sdeps,lag=20)
+acf(ddeps,lag=20)
+```
+Make plots of ACF for:
+ 1. Series koeps of log-earnings
+ 2. Series deps of first differences of koeps
+ 3. Series sdeps of serially differenced koeps
+ 4. Series ddeps of both regularly and seasonally differenced koef.
+ 
+ Seasonal differencing is 4 steps, apply quarterly to the daily diff
+ 
+ 
+ estimate airline model(0,1,1)
+ apply seasonaly separately from arima
+ 
+ 
+```{r}
+m1=arima(koeps,order=c(0,1,1),seasonal=list(order=c(0,1,1),period=4))
+m1
+tsdiag(m1,gof=20)  # model checking
+```
+box test on residuals, model is adequate
+```{r}
+y=koeps[1:100]
+m1=arima(y,order=c(0,1,1),seasonal=list(order=c(0,1,1),period=4))
+m1
+```
+```{r}
+# Obtain time plots
+par(mfcol=c(3,1))
+plot(deps,xlab='year',ylab='diff',type='l')
+points(deps,pch=c1,cex=0.7)
+plot(sdeps,xlab='year',ylab='sea-diff',type='l')
+points(sdeps,pch=c2,cex=0.7)
+plot(ddeps,xlab='year',ylab='dd',type='l')
+points(ddeps,pch=c1,cex=0.7) 
+```
+Both differences (bottom) removed both seasonality and nonstationarity.
+ACF shows:
+
+Lags 1 and 4 are negative and significant
+Lag 5 is positive and significant
+Lag 3 is positive and just above the threshold
+Indication of both types of patterns (period 1 and 4) and multiplicative model (interaction).
+
+Estimate the model ARIMA(0,1,1).
+```{r}
+#  Estimation
+m1=arima(koeps,order=c(0,1,1),seasonal=list(order=c(0,1,1),period=4))
+m1
+# Test theresiduals
+tsdiag(m1,gof=20)
+Box.test(m1$residuals,lag=12,type='Ljung')
+pp=1-pchisq(13.30,10)
+pp
+# checking iid asumption,
+# checking ACF of residuals
+# checking pval
+
+# Conclustion the model is adequate
+
+
+```
+For forecasting, re-estimate the model using only the first 100 observations
+```{r}
+koeps=lag(da$value)
+length(koeps)
+y=koeps[1:100]
+m1=arima(y, order=c(0,1,1), seasonal=list(order=c(0,1,1), period=4))
+m1
+```
+
+```{r}
+par(mfrow=c(1,1))
+pm1=predict(m1,7)
+names(pm1)
+
+
+pred=pm1$pred
+se=pm1$se
+ko=da$value # actual observations
+fore=exp(pred+se^2/2) #point forecasts, delogged
+v1=exp(2*pred+se^2)*(exp(se^2)-1)
+s1=sqrt(v1) # std of the forecast error
+eps=ko[80:107]
+length(eps)
+
+tdx=(c(1:28)+3)/4+2002
+upp=c(ko[100],fore+2*s1) # upper band (+2*std)
+low=c(ko[100],fore-2*s1) # lower band (-2*std)
+min(low,eps)
+max(upp,eps)
+
+plot(tdx,eps,xlab='year',ylab='earnings',type='l',ylim=c(0.35,1.3))
+points(tdx[22:28],fore,pch='*')
+lines(tdx[21:28],upp,lty=2)
+lines(tdx[21:28],low,lty=2)
+points(tdx[22:28],ko[101:107],pch='o',cex=0.7)
+```
+
+##3.2 airlinemodel to airline passengers
+```{r}
+plot(AirPassengers)
+plot(log10(AirPassengers))
+par(mfcol=c(2,2))
+loggedData=log10(AirPassengers)
+diffData=diff(loggedData)
+sdiffData=diff(diffData,12)
+ddData=diff(sdiffData)
+acf(loggedData,lag=20)
+acf(diffData,lag=20)
+acf(sdiffData,lag=20)
+acf(ddData,lag=20)
+
+# Obtain time plots
+par(mfcol=c(3,1))
+plot(diffData,xlab='year',ylab='diff',type='l')
+plot(sdiffData,xlab='year',ylab='sea-diff',type='l')
+plot(ddData,xlab='year',ylab='dd',type='l')
+
+#  Estimation
+mAirline=arima(loggedData,order=c(0,1,1),seasonal=list(order=c(0,1,1),period=12))
+mAirline
+
+# Test the residuals
+tsdiag(mAirline, gof=24)
+Box.test(mAirline$residuals,lag=20,type='Ljung')
+pp=1-pchisq(17.688,18)
+pp
+
+# The model fits well, check the distribution assumption
+par(mfrow=c(1,1))
+hist(mAirline$residuals)
+qqnorm(mAirline$residuals)
+qqline(mAirline$residuals)
+```
+
+
