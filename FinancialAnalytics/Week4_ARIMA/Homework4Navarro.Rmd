@@ -56,7 +56,7 @@ acf(diff.ln.earns)
 acf(s.diff.ln.earns)
 acf(d.diff.ln.earns)
 ```
-############## Do these ACF plots look good? do they give any suggestions############# 
+############## Do these ACF plots look good? do they give any suggestions############# stop at s.diff.ln.earns, exp decay
 ```{r}
 # Obtain time plots
 par(mfcol=c(3,1))
@@ -106,7 +106,7 @@ auto.arima(diff.ln.earns, seasonal = T) # suggests (2,0,2) AIC -98.45
 
 ```
 
-########## Which ARIMA  model do we choose?################
+########## Which ARIMA  model do we choose?################ convert into ts object , fit frequ of 4 , then put into auto.arima
 
 Perform model check
 ```{r}
@@ -120,7 +120,7 @@ pp
 Here we see that the iid assumptions are valid. The Ljung Box test shows us that the residuals have no serial correlation
 
 ######### What does pp = 0 tell me?#########
-
+small pvalu, means not white noise, Q is large, sum of sq of each acf magnitudes
 Conclusion: the model is adequate
 
 The model is:
@@ -138,8 +138,8 @@ m202y <- arima(diff.ln.y, order=c(2,0,2)) # AIC -88.34
 m202y
 ```
 
-###################Is this how to refit the model?#########################
-
+###################Is this how to refit the model?######################### ts seaasonal, difference, find new p and q. redo the whole thing
+then forecast
 Perform 1 to 10 step forecasts of earnings and obtain a forecast plot
 
 ```{r}
