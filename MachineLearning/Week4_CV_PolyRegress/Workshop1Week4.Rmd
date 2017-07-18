@@ -1,0 +1,297 @@
+---
+title: "Workshop1 week4"
+author: "John Navarro"
+date: "July 14, 2017"
+output: pdf_document
+---
+# 1 Cross Validation of Time Dependent Data
+
+```{r}
+suppressWarnings(library(NHPoisson))
+suppressWarnings(library(caret))
+```
+## 1.1 Folds in caret
+
+Use function createFolds() from library caret
+
+```{r}
+createFolds(y=1:20,k=5,list=T, returnTrain=T)
+createTimeSlices(y=1:20, initialWindow = 5,horizon=1, fixedWindow=T, skip =2)
+```
+
+## 1.2 Poisson process
+
+Simulate Poisson process by simulating time intervals between events
+```{r}
+lambdaLimit <- 50
+set.seed(83746)
+# creating time intervals where the rate is 1/50
+timeInt <- rexp(1000,lambdaLimit)
+# calc cum sum
+timeEvent <- cumsum(timeInt)
+# Estimate intensity of  the process
+(nEvent <- length(timeEvent))
+(lambdaEst <- length(timeInt)/tail(timeEvent,1))
+# Fit intensity using fitPP.fun()
+fit <- fitPP.fun(posE = timeEvent, nobs=tail(timeEvent,1),start=list(b0=0),dplot=F, modCI=T)
+```
+
+
+
+****************Unfinished*******************
+
+# 2. Cross Vaildation and Mixed Distributions
+
+Check how cross validation works on data that contain mix of different distributions
+```{r}
+suppressWarnings(library(nor1mix))
+suppressWarnings(library(DAAG))
+suppressWarnings(library(mclust))
+```
+Create an object containing mix of 2 normal distributions
+```{r}
+mus <- c(1,4)
+sigmas <- c(.7,1.5)
+mixWeights <- c(.4,.6)
+myMix <- norMix(mu=mus, sigma=sigmas, w=mixWeights)
+plot(myMix, main="Mixed distribution", ylab="Distribution Density")
+legend("topright", legend=c("Mix", "Equivalent Normal"), col=c("black","red"),lty=c(1,2))
+
+```
+Using the object myMix, simulate the data
+```{r}
+nSample <- 500
+set.seed(8476)
+mixData <- as.data.frame(rnorMix(nSample, myMix))
+names(mixData) <- "Y"
+head(mixData)
+dim(mixData)
+plot(1:nSample, mixData$Y)
+hist(mixData$Y)
+```
+So in the scatterplot and histogram we see that we have a mix of 2 distributions
+
+Estimate mean value of the sample with crossvalidation using 10 folds
+Function myCVlm from package DAAG
+
+```{r}
+cvFit <- CVlm(mixData, form.lm=Y~1,seed=943, m=10, plotit=F, printit=F)
+names(cvFit)
+head(cvFit)
+mean(mixData$Y)
+```
+Obviously crossvalidation estimated the mean value of the mixed sample
+Show the 10folds used by the function CVlm()
+```{r}
+(foldMeansCVlm <- as.numeric(names(table(cvFit$cvpred))))
+matplot(1:nSample, cvFit[,2:3],type="l",col=c("red","green"))
+points(1:nSample,cvFit[,3],col="blue",pch=16)
+```
+Mark the plot of the mix with the estimated mean value
+```{r}
+plot(myMix, main="Mixed Distribution and Estimate", ylab="Distribution Density")
+abline(v=mean(mixData$Y))
+legend("topright", legend = c("Mix", "Estimated Normal"), col=c("black","red"), lty=c(1,2))
+```
+In this case cross validation returned a trivial result and couldn't capture the pattern within the data
+Reproduce the 10 fold cv calculations
+Data are in the file mixeddata.csv
+
+```{r}
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/MachineLearning/Week4_CV_PolyRegress"
+da=read.csv(file=paste(datapath,"mixeddata.csv" ,sep="/"),header=T)
+head(da)
+dim(da) #500x1
+```
+
+```{r}
+plot(da$Y)
+hist(da$Y)
+mix <- da$Y
+library(DAAG)
+cvFit <- CVlm(mix, form.lm=Y~1, seed=943, m=10, plotit=F)
+navme(cvFit)
+head(cvFit)
+mean(mix)
+foldMeansCVlm <- as.numeric(names(table(cvFit$cvpred)))
+fold <- sample( da$Y, 50, replace=T)
+mean(fold)
+head(fold)
+vec <- c()
+set.seed <- 943
+for (i in 1:10){
+  vec[i] <- mean(sample(da$Y, 50, replace=T))
+}
+vec
+sort(vec)
+
+m <- 10
+rand <- sample(50)%%m+1
+matrix(NA, 450,m)
+for (i in 1:10){
+  da$Y[rand!=i]
+}
+
+```
+Instead of estimating global mean, it was possible to separate clusters
+```{r}
+clusteredData<-Mclust(mixData, G=2,modelNames=c("V"))
+names(clusteredData)
+clusteredData$G
+clusteredData$param
+(clusteredDataParam<-rbind(mu=clusteredData$param$mean,sigma=sqrt(clusteredData$param$variance$sigmasq),pro=clusteredData$param$pro))
+```
+LESSON: Cross validation does not replace common sense analysis of fitting
+or furthere anaylsis of the data
+
+## 3.0 Cross Validation and Polynomial regression
+
+Fitting polynomial to observed data is a common example of possibility for regression overfitting.
+It is well known, that overestimating degree of fitted polynomial improves training error but leads to overfitting. Cross validation is a common method of fixing this problem
+#3.1 Data simulation
+
+Simulate data as low magnitude sine wave hidden in strong noise
+
+```{r}
+set.seed(8509)
+trendData <- sin((0:500)*1.75*pi/500)*.1
+plot(trendData)
+```
+```{r}
+cvData <- data.frame(Y=trendData+rnorm(501,0,3),X=(0:500)*1.75*pi/500,X2=((0:500)*1.75*pi/500)^2,X3=((0:500)*1.75*pi/500)^3)
+plot(cvData$X,cvData$Y)
+lines(cvData$X,trendData)
+head(cvData)
+```
+The trend looks almost like a constant
+Model candidates are
+1. Null Model Y = B0
+2. Simple Linear Model Y=B0 +B1X
+3. Second order polynomial Y =B0+B1X+B2X^2
+4. Third order polynomial Y= B0+B1X+B2X^2+B3X^3
+Use cross validation technique to prevent over fitting
+
+### 3.2 Null modle
+```{r}
+fit0.lm <- lm(Y~1, data=cvData)
+summary(fit0.lm)
+```
+Intercept is not significant due to low signal to noise ratio
+
+The following function fits linear function according the formula form.lm using cross validation with # of folds m
+```{r}
+fit0.cv <- CVlm(data=cvData, form.lm=Y~1, seed=943, m=3,plotit=T, printit=F)
+names(fit0.cv)
+# adds predicted(constant) and cvpred as columns to cvData
+head(fit0.cv,10)
+# take the mean of the MSE for each fold
+mean(c(10.3,9.24,9.87))
+```
+```{r}
+# Plot the three folds predictions
+matplot(fit0.cv$X, fit0.cv[,c(5,6)], type="l",col=c("red","green"),lwd=c(3,1),ylim=c(-0.2,0.3))
+lines(fit0.cv$X, trendData, lwd=2)
+points(fit0.cv$X, fit0.cv[,1])
+points(fit0.cv$X, fit0.cv$cvpred, col="blue", pch=19)
+legend("topright",legend=c("Actual trend", "All data", "Folds", "cvpred"),lty=1,lwd=2,col=c("black","red","blue","green"),cex=.7)
+```
+Reproducethe model linesfor each fold manually
+```{r}
+plot(modelData.fold1$Y,pch=16)
+points(modelData.fold2$Y,col="orange",pch=16)
+points(modelData.fold3$Y,col="blue",pch=16)
+c(lm0.fold1=lm0.fold1$coefficients,
+  lm0.fold2=lm0.fold2$coefficients,
+  lm0.fold3=lm0.fold3$coefficients)
+```
+```{r}
+predictDataFrame<-data.frame(X=(0:500)*2*pi/500,X2=((0:500)*2*pi/500)^2,X3=((0:500)*2*pi/500)^3)
+matplot(fit0.cv$X,fit0.cv[,c(5,6)],type="l",col=c("red","green"),lwd=c(3,1),ylim=c(-0.2,.3),xlim=c(0,2*pi))
+lines(fit0.cv$X,trendData,lwd=2)
+points(fit0.cv$X,fit0.cv[,1])
+points(fit0.cv$X,fit0.cv$cvpred,col="blue",pch=19)
+lines((0:500)*2*pi/500,predict(lm0.fold1,newdata=predictDataFrame),col="purple",lwd=4)
+lines((0:500)*2*pi/500,predict(lm0.fold2,newdata=predictDataFrame),col="gold",lwd=4)
+lines((0:500)*2*pi/500,predict(lm0.fold3,newdata=predictDataFrame),col="maroon",lwd=4)
+legend("topright",legend=c("Actual trend","All data","Folds","cvpred","Fold1","Fold2","Fold3"),
+       lty=1,lwd=2,col=c("black","red","blue","green","purple","gold","maroon"),cex=.7)
+```
+
+## 3.3 Simple linear model
+
+Repeat the same  steps with simple linear model
+```{r}
+fit1.lm <- lm(Y~X, data =cvData)
+summary(fit1.lm)
+```
+now fit linear  model using CVlm
+```{r}
+fit1.cv <- CVlm(cvData,form.lm=Y~X, seed=943, m=3, plotit=F, printit=F)
+head(fit1.cv,15)
+```
+```{r}
+matplot(fit1.cv$X,fit1.cv[,c(5,6)],type="l",col=c("red","green"),lwd=c(3,1),ylim=c(-.3,.3))
+lines(fit1.cv$X,trendData,lwd=2)
+points(fit1.cv$X,fit1.cv[,1])
+points(fit1.cv$X,fit1.cv$cvpred,col="blue",pch=19)
+legend("topright",legend=c("Actual trend","All data","Folds","cvpred"),lty=1,lwd=2,col=c("black","red","blue","green"),cex=.7)
+```
+
+##
+
+
+```{r}
+#MSE of null model
+mean((fit0.cv$Y-fit0.cv$cvpred)^2)
+#MSE of linear model
+summary(fit1.cv)
+mean((fit1.cv$Y-fit1.cv$cvpred)^2)
+```
+ It seems like the null model has the lowest MSE
+
+# 4. Curve fitting and risk associated with it
+
+Create data for the experiment as polynomial of degree 4 plus small noise
+```{r}
+set.seed(2000)
+N = 120
+tF <- function(x) x^4
+X = 0.1*(1:N)
+sigma = 40
+data = data.frame(y= tF(X) + rnorm(N,sd=sigma),x=X)
+dim(data) # 120x2
+#signal to noise ratio
+mean(data$y/sigma)
+```
+Define evaluation data set as the last nEval=20 values of data. Reshuffle the rest of the sample.
+```{r}
+set.seed(2001)
+nEval = 20  # last nEval values - evaluation set
+n = N - nEval # n values in train set
+xTrain = data[c(sample(n),(n+1):N),] # reshuffle train set, keep test set unchanged
+nFold = 10
+```
+Now run a 10-fold cross validation on the trainingset
+```{r}
+resCV=numeric(nFold)
+(testSize=floor(n/nFold))
+```
+
+```{r}
+for(k in 1:6) {   # k is the degree of fitted polynomial
+  if(k>1) { 
+    xTrain = cbind(xTrain,xTrain$x^k)  #create polynomial of degree k
+    names(xTrain)[ncol(xTrain)] = paste0('x',k)
+  }
+  for(i in 1:nFold) {
+    # select train and test sets
+    testInd = (1+(i-1)*testSize):(i*testSize)  #make test fold
+    train = xTrain[(1:n)[-testInd],]  #exclude test fold
+    test = xTrain[testInd,]
+    model <- lm(y~.,data=train)
+    resCV[i] = sum((predict(model,test)-test$y)^2)  
+  }  
+  cat(k,mean(resCV),'\n')  #like print, but more efficient
+}
+```
+
