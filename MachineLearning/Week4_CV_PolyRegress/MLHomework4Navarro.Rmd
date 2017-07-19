@@ -1,0 +1,131 @@
+---
+title: "MLHomework4"
+author: "John Navarro"
+date: "July 19, 2017"
+output: pdf_document
+---
+
+## 1. Preparation for the test
+
+Create data for the experiment as polynomial of degree 4 plus small noise
+```{r}
+set.seed(2333)
+N = 120
+tF <- function(x) x^4
+X = 0.1*(1:N)
+sigma = 40
+data = data.frame(y= tF(X) + rnorm(N,sd=sigma),x=X)
+head(data)
+dim(data)#120 x2
+```
+Define evaluation data set as the last nEval=10 values of data. Reshuffle the rest of the sample
+```{r}
+set.seed(2111)
+nEval = 10  # last nEval values - evaluation set
+n = N - nEval # n values in train set
+xTrain = data[c(sample(n),(n+1):N),] # reshuffle train set, keep test set unchanged
+nFold = 10
+```
+Now run a 10-fold cross validation on the training set
+```{r}
+resCV = numeric(nFold)
+(testSize = floor(n/nFold))
+for(k in 1:6) {   # k is the degree of fitted polynomial
+  if(k>1) { 
+    xTrain = cbind(xTrain,xTrain$x^k)  #create polynomial of degree k
+    names(xTrain)[ncol(xTrain)] = paste0('x',k)
+  }
+  for(i in 1:nFold) {
+    # select train and test sets
+    testInd = (1+(i-1)*testSize):(i*testSize)  #make test fold
+    train = xTrain[(1:n)[-testInd],]  #exclude test fold
+    test = xTrain[testInd,]
+    model <- lm(y~.,data=train)
+    resCV[i] = sum((predict(model,test)-test$y)^2)  
+  }  
+  cat(k,mean(resCV),'\n')  #like print, but more efficient
+}
+head(cbind(xTrain, xTrain$x4))
+```
+
+Select polynomial with lowest mean squared deviations
+
+## Data
+
+```{r}
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/MachineLearning/Week4_CV_PolyRegress"
+data<-read.csv(file=paste(datapath,"test_sample.csv",sep="/"))
+head(data)
+dim(data) # 120 x 2
+# Rows without "NA" form the train data set, rows with "NA" in column Y form the test sample
+tail(data)
+```
+
+## Task
+
+Variable Y was simulated as sum of polynomial of some degree not more than 6 and noise.
+The goal of this project is estimating the polynomial degree and coefficients using cross validation on the train set and predicting unknown values of Y in the test set.
+
+Workshop Document shows how to run a 10-fold cross validation and fit polynomial of degree not more than 6 with lowest mean squared deviations.
+
+No reshuffling required
+
+separatetraining set
+```{r}
+test.w <- data[is.na(data$Y), ]
+dim(test.w) #20x2
+xTrain<- data[!is.na(data$Y), ]
+dim(xTrain) # 100x2
+colnames(xTrain)
+```
+Use cross validation to find the polynomial degree
+```{r}
+n=100
+nFold = 10
+resCV = numeric(nFold)
+(testSize = floor(n/nFold))
+
+for(k in 1:6) {   # k is the degree of fitted polynomial
+  if(k>1) { 
+    xTrain = cbind(xTrain,xTrain$X^k)  #create polynomial of degree k
+    names(xTrain)[ncol(xTrain)] = paste0('x',k)
+  }
+  for(i in 1:nFold) {
+    # select train and test sets
+    testInd = (1+(i-1)*testSize):(i*testSize)  #make test fold
+    train = xTrain[(1:n)[-testInd],]  #exclude test fold
+    test = xTrain[testInd,]
+    model <- lm(Y~.,data=train)
+    resCV[i] = sum((predict(model,test)-test$Y)^2)  
+  }  
+  cat(k,mean(resCV),'\n')  #like print, but more efficient
+}
+
+
+```
+Denote the estimated polynomial degree as fittedDegree.
+```{r}
+fittedDegree <- 1
+```
+
+Predict the unknown values of Y (variable predY) using the polynomial of degree fittedDegree fitted to the train set.
+
+```{r}
+model <- lm(Y~X, data = xTrain)
+predY <- predict(model, newdata = test.w)
+predY
+```
+
+
+## Preparation of the Solution
+
+Create matrix res with the fitted degree and the predictedvalues of Y
+
+```{r}
+res = matrix(c(fittedDegree,predY),ncol = 1,
+             dimnames = list(c("Degree",paste0(data$X[is.na(data$Y)])),c())
+             )
+# write to csv
+write.table(res,"W4answer.csv",quote=F,col.names = F,sep = ",")
+```
+
