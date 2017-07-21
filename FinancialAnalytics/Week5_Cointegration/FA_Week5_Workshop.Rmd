@@ -1,0 +1,310 @@
+---
+title: "FA_Workshop Week 5"
+author: "John Navarro"
+date: "July 20, 2017"
+output: pdf_document
+---
+
+```{r}
+library(forecast)
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/FinancialAnalytics/Week5_Cointegration"
+x<-read.csv(file=paste(datapath,"WGS1_3YR.csv",sep="/"))
+head(x)
+dim(x)#1557 x3
+r1 <- x[,2]
+r3 <- x[,3]
+plot(r1,col ="blue",type="l",main = "1 and 3 year constant maturity rates")
+lines(r3,col="red",main = "1 and 3 year constant maturity rates")
+```
+
+
+
+r3t=a+Br1t+Et
+
+
+
+
+## Title:
+##  ARIMA Modelling
+##
+## Call:
+##  armaFit(formula = ~arma(0, 1), data = cresiduals)
+##
+## Model:
+##  ARIMA(0,0,1) with method: CSS-ML
+##
+## Coefficient(s):
+##        ma1   intercept
+##  0.1576619  -0.0001134
+##
+## Residuals:
+##       Min        1Q    Median        3Q       Max
+## -0.535503 -0.032129 -0.003149  0.031209  0.293120 # even distribution
+##
+## Moments:
+## Skewness Kurtosis
+## -0.01862  6.74808 Fat tails, not gaussian
+##
+## Coefficient(s):
+##             Estimate  Std. Error  t value Pr(>|t|)
+## ma1        0.1576619   0.0238446    6.612 3.79e-11 *** coeff is invertable
+## intercept -0.0001134   0.0016731   -0.068    0.946
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+##
+## sigma^2 estimated as: 0.00325
+## log likelihood:       2249.4
+## AIC Criterion:        -4492.79
+
+#standardized residuals, variance doesnt look stationary
+
+qqplot shows fat tails
+
+box ljung says not more than 4 lags have autocorrelation
+
+## Cointegration
+
+### Interest Rates Example for the 900 Last Observations
+```{r}
+n <- length(r1) #1557
+nb <- max(n-900,1) #657
+rr1 <- r1[nb:n]
+rr3 <- r3[nb:n]
+plot(rr1, col="blue", type="l", main="1 and 3 year constant maturity rates")
+lines(rr3, col="red")
+```
+Fit cointegration model
+```{r}
+library(urca)
+data <- cbind(rr1, rr3) 
+head(data)
+cajo <- ca.jo(data,ecdet="none" ,type="eigen", K=2, spec="longrun")
+summary(cajo)
+
+```
+Residuals and their ACFs and PACFs for 1 year and 3 year rate respectively
+```{r}
+plotres(cajo)
+```
+Check statistics and critical values of the test for cointegration order
+```{r}
+cajo@teststat
+cajo@cval
+```
+
+Plot test statistic and critical values
+```{r}
+barplot(cajo@cval[1,],main = "Johansen test h<=1",col = "red")
+abline(h=cajo@teststat[1], col="blue")
+legend("topleft", c("critical values","test statistics"), lwd=2,col = c("red","blue"), bty="n")
+```
+Here we cannot reject the NH, so we accept that the cointegration order is less than or equal to 1.
+Now we check the second NH. Here we can reject at the 95% significance level and can say that the order is not equal to zero. 
+
+Cointegration vector a1=(a1,1,a1,2), normalized with respect to the first variable
+```{r}
+# cajo@V normalizes the vector, select the first column
+(a_1<- cajo@V[,1])
+# By definitigon of cointegration w order h=1, process must be stationar
+z_t1 <- data%*% a_1
+matplot(z_t1, type="l", main="z(1,t) = a1'x(t)", col="blue")
+
+```
+Estimate autoregression model for process zt,1
+```{r}
+zar <- ar(z_t1, aic=TRUE, method = "yule-walker")
+zar$order
+auto.arima(z_t1, max.q=0, max.d=0, max.p=6, max.order=6)
+```
+
+Check the roots of characteristic equation
+```{r}
+library(fArma)
+par(mfrow = c(1, 1), cex = 0.9)
+armaRoots(zar$ar,lwd = 8, n.plot = 400, digits = 8)
+zar$ar
+```
+
+Since cointegration order equals 1 vector a2=(a2,1, a2,2) is not a cointegration vector and the process zt2=a2xt is not stationary
+```{r}
+# normalizes 2nd vector to first element, 
+a_2 <- cajo@V[,2]
+# data %*% the cointegration vector
+z_t2 = data%*%a_2
+# plot the cointegrated time series
+matplot(z_t2, type="l", main="z(2,t)=a2'x(t)", col = "blue")
+```
+This is not stationary
+
+## Predicting Using Cointegration Model
+Xt can be represented as a 2 dim VAR(2) model
+rewrite in matrix form
+this is the form in which function ca.jo() fits the modelwith setting spec="longrun"
+
+In order to forecast the fitted model
+vector mu:
+```{r}
+(mu <- cajo@GAMMA[,1])
+```
+Matrix of coefficients PI 1 (slot PI of class ca.jo)
+```{r}
+(PI <- cajo@PI)
+```
+Matrix of coefficients G(slot Gamma of class ca.jo)
+```{r}
+(Gamma <- cajo@GAMMA[,2:3])
+```
+In order to construct forecasts we also need matrix delta Xt-1 and matrix Xt-2
+```{r}
+#first difference of the 1 and 3 yr yields
+dX_1 <- cajo@Z0
+dim(dX_1)
+# slot ZK of ca.jo looks like initial data
+X_2 <- cajo@ZK
+head(X_2)
+head(data)
+```
+```{r}
+deltaX_t_1 <- Gamma%*%t(dX_1) + PI %*%t(X_2)
+deltaX_t_1<-apply(deltaX_t_1,2,"+",mu)
+```
+The forecasts for rates are
+```{r}
+nrowsdata <- dim(data)[1] #901
+data_t_2 <- data[3:nrowsdata,] # dim 899x2
+deltaX_t_1 <- t(deltaX_t_1) # dim 899x2
+# forecX is original X's plus the change in Xs from the forecast equation
+forecX <- data_t_2 +deltaX_t_1 # dim 899 x 2
+```
+
+plot
+```{r}
+fr1 = cbind(rr1[3:length(rr1)],forecX[,1])
+matplot(fr1,col =c("blue","red"),type="l",main = "1 year rate and prediction")
+legend("topright", c("1 year rate","prediction"), lwd=2,col = c("blue","red"), bty="n")
+```
+Plot predictions of 3 year yield
+```{r}
+fr3 = cbind(rr3[3:length(rr3)],forecX[,2])
+matplot(fr3,col =c("blue","red"),type="l",main = "3 year rate and prediction")
+legend("topright", c("3 year rate","prediction"), lwd=2,col = c("blue","red"), bty="n")
+```
+Cointegration model preserved long term dependence of 1 and 3 year rates
+Difference the forecasts and plot them
+```{r}
+dfr1=diff(fr1)
+dfr3=diff(fr3)
+plot(dfr1,dfr3,col ="blue",main = "Scatter plot for change of prediction for 1 and 3 year interest rate",
+     xlab="Differenced Forecasts of 1-yr Rate",ylab="Differenced Forecasts of 3-yr Rate")
+```
+This plot shows that the cointegration model also captured short term dependence of rates differences
+Cointegration model in contrast to the regression allows us predicting both 1 yr and 3 yr rate
+Check errors of prediction by the cointegration model
+```{r}
+# Calculate 1 yr yield forecast errors
+cerror1 <- rr1[3:length(rr1)] - forecX[,1]
+# Calcualte 3 year yield forecast errors
+cerror3<-rr3[3:length(rr1)]-forecX[,2]
+# Plot 1 yr yield
+matplot(cerror1,main = " Error of Prediction of 1-Year Yield",type = "l")
+# Plot 3 yr yield
+matplot(cerror3,main = " Error of Prediction of 3-Year Yield",type = "l")
+# plot scatterplot of the errors
+plot(cerror1, cerror3, col="blue", main="Scatter plot for prediction of 1 and 3 year interest rate")
+# Estimate the covariance matrix of residuals of the cointegration model
+cor(cbind(cerror1, cerror3))
+
+```
+
+## Regression model for the 900 last observations
+
+```{r}
+# plot the 900 observations for both yields
+plot(rr1, rr3, col="blue", main="Scatter plot of interest rates")
+
+# fit a linear model
+linreg_900 <- lm(rr3~rr1)
+summary(linreg_900)
+
+# Look at the residuals
+residuals_900 <- linreg_900$residuals
+plot(residuals_900, type="l", col="blue")
+```
+The process for residuals is unit root non stationary
+```{r}
+# ACF plot of the residuals
+acf(residuals_900, col="blue", lty=1, lwd=4)
+```
+This shows us definite autocorrelation. Slow decay. this is non stationary data
+
+What does it tell us about the cointegration vector?
+If we normalize the coefficients of the linear model, we get (1,1.169) compared to (1,-1.127) which is our cointegrated vector. We can see that both models are capturing a similar relationship.
+
+The AR nature of residuals makes us consider examing the differenced time series
+```{r}
+# Calculate and plot the first differences
+cc1 <- diff(rr1)
+cc3 <- diff(rr3)
+plot(cc1,cc3,main="Scatter Plot of Differences", col = "blue")
+```
+The plot shows that the differences remain highly correlated
+```{r}
+# Fit a linear model to the differences, with no intercept
+clinreg_900 <- lm(cc3~cc1 - 1)
+summary(clinreg_900)
+
+# Examine the residuals with plot and ACF
+cresiduals_900 <- clinreg_900$residuals
+plot(cresiduals_900,type ="l",main = "residuals",col = "blue")
+acf(cresiduals_900,main = "ACF of residuals",col ="blue",lty=1 ,lwd = 4)
+
+```
+Looking at ACF we identify a MA(1) model for the residuals and modify the lin reg model
+```{r}
+# Use arma fit to estimate MA(1) model on the residuals
+ma1_900 <- armaFit(~ma(1), data=cresiduals_900)
+summary(ma1_900, which="all")
+```
+```{r}
+#arma residuals
+ma1_900res <- residuals(ma1_900)
+# Forecast r3, first need to forecast et
+theta1_900 <- ma1_900@fit$coef[1]
+a_t_900 <- theta1_900*ma1_900res
+
+# let ft be a forecast for rt,3
+x_3_900 <- rr3[-length(rr3)] #900
+
+# forecast = 3 yr rates + slope*(diff 1 yr rate) + a_t from MA1
+forec_900 <- x_3_900 + clinreg_900$coefficients*cc1+a_t_900
+matplot(cbind(rr3[-1],forec_900),type = "l",col = c("blue","red"),main= "3 Year rate and forecast")
+legend("topright", c("3 Year rate","Forecasts"), lwd=2,col = c("blue","red"), bty="n")
+```
+Check the scatter plot of forecast differences vs the difference 1 year yield
+```{r}
+# take difference of forecasts
+difforec_900 = diff(forec_900)
+# bind with differenced 1 yr yield
+cr_1<-cbind(difforec_900,cc1[-1])
+# create scatter plot of the two
+plot (cr_1[,1],cr_1[,2],col = "blue",main = "Differenced Forecast of 3-Year Yield vs. Differenced 1-Year Yields")
+```
+Compare the errors of the regression model with stationary residuals for 3 yr rate of cointegration model
+```{r}
+# create the errors from forecast
+linregerror_900 <- rr3[-1]-forec_900
+# bind 3yr errors from lin reg and cointegration model
+errors<-cbind(linregerror_900[-1],cerror3)
+
+#plot the two errors
+matplot(errors,type ="l",col = c("orange","blue"),main = "3-Year Yield Errors for Regression and Cointegration Model")
+legend("topright", c("regression errors","cointegration errors"), lwd=2,col = c("orange","blue"), bty="n")
+```
+The variance of the cointegration errors (blue) is lower than the regression errors(orange)
+Examine how the errors of the tow models are related to each other
+```{r}
+plot(errors[,1],errors[,2],col = "blue", 
+     main = "Scatter Plot of Regression model Errors vs Cointegration errors",
+     xlab="Regression Model Errors", ylab="Cointegration Model Errors")
+```
+The errors of the two models are negatively correlated, this suggests that mixing the modles together (ensemble) maay reduce the error level
