@@ -276,7 +276,7 @@ dfaaa <- diff(fraaa)
 dfbaa <- diff(frbaa)
 
 #Scatter plot of the differences of the forecasts
-plot(dfaaa,dfbaa,col ="blue",main = "Scatter plot for change of prediction for AAA and BAA yields",
+plot(dfaaa,dfbaa,col ="black",main = "Scatter plot for change of prediction for AAA and BAA yields",
      xlab="Differenced Forecasts of AAA Yields",ylab="Differenced Forecasts of BAA Yields")
 ```
 Here we can see that the cointegration model also captures short term dependence of the two ratings levels.
@@ -292,7 +292,7 @@ matplot(cerrorA,main = " Error of Prediction of AAA Yield",type = "l")
 matplot(cerrorB,main = " Error of Prediction of BAA Yield",type = "l")
 
 # Scatterplot of errors of predicaiton for both bond levels
-plot(cerrorA,cerrorB,col ="blue",main = "Scatter plot for errors of prediction for AAA and BAA yields")
+plot(cerrorA,cerrorB,col ="black",main = "Scatter plot for errors of prediction for AAA and BAA yields")
 
 # Covariance matirx of residuals of the cointegration model
 cor(cbind(cerrorA, cerrorB))
@@ -318,7 +318,7 @@ Here it appears that the variance level of cointegration errors is lower than th
 
 Check for a relationship between the errors of the two models
 ```{r}
-plot(errors[,1],errors[,2],col = "blue", 
+plot(errors[,1],errors[,2],col = "black", 
      main = "Scatter Plot of Regression model Errors vs Cointegration errors",
      xlab="Regression Model Errors", ylab="Cointegration Model Errors")
 ```
