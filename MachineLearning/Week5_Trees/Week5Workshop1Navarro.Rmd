@@ -1,0 +1,249 @@
+---
+title: "ML Workshop1 Week 5"
+author: "John Navarro"
+date: "July 21, 2017"
+output: pdf_document
+---
+# Workshop 1 Recursive Binary Splitting
+
+## 1 Example on binary splitting
+```{r}
+# read data
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/MachineLearning/Week5_Trees"
+(tree.data<-read.csv(file=paste(datapath,"binary_splitting_data.csv",sep="/")))
+```
+### 1.1 preparing functions for sum of squares
+Create function
+```{r}
+oneSplit <- function(myData, myVariable, splitLevel){
+  idx<-myData[,myVariable+1]<mySplit
+  set1 <- myData[idx==TRUE,]
+  set2 <- myData[idx==FALSE]
+  y.mean1 <- mean(set1[,1])
+  y.mean2 <- mean(set2[,1])
+  SS.1 <- sum((y.mean1-set1[,1])^2)
+  SS.2 <- sum((y.mean2-set1[,1])^2)
+  SSE=SS.1+SS.2
+  return(SSE)
+  
+}
+
+selectSplit <- function(myData){
+  x1 <-sort(myData[,2])
+  x2 <- sort(myData[,3])
+  nData <- length(myData[,1])-1
+  splits <- data.frame(x1=median(x1), x2=median(x2))
+  splits1.ss <- oneSplit(myData, myVariable, splits$x1)
+  splits2.ss <- oneSplit(myData, myVariable, splits$x2)
+  SS <- data.frame(splits1.ss, splits2.ss)
+  return(SS, splits)
+}
+
+
+x1 <-sort(tree.data[,2])
+x2 <- sort(tree.data[,3])
+ nData<-length( tree.data[,1])-1
+splits<-data.frame(x1=sapply(1:nData,function(z) mean(c(x1[z],x1[z+1]))),
+                     x2=sapply(1:nData,function(z) mean(c(x2[z],x2[z+1]))))
+```
+```{r}
+oneSplit<-function(myData,myVariable,mySplit){
+  # myData: matrix of data
+  # myVariable: number of variable that needs split 1:ncol(myData)
+  # mySplit: split level
+  idx<-myData[,myVariable+1]<mySplit # separate variable by mySplit 
+  subs1<-subset(myData,idx) # subset below mySplit
+  subs2<-subset(myData,!idx) # subset above mySplit
+  mean1<-mean(subs1$y) # mean of subset 1
+  mean2<-mean(subs2$y) # mean of subset 2
+  sum((subs1$y-mean1)^2)+sum((subs2$y-mean2)^2) # out: sum of sums of squares
+}
+selectSplit<-function(myData){
+  # myData: data matrix including response in column 1
+  x1<-sort(myData[,2]) # sort variable 1
+  x2<-sort(myData[,3]) # sort variable 2
+  nData<-length(myData[,1])-1 # number of splits
+  
+  # create splits
+  splits<-data.frame(x1=sapply(1:nData,function(z) mean(c(x1[z],x1[z+1]))),
+                     x2=sapply(1:nData,function(z) mean(c(x2[z],x2[z+1]))))
+  
+  # calculate sums of squares of all splits
+  splits1.SS<-sapply(1:nData,function(z) oneSplit(myData,1,splits$x1[z]))
+  splits2.SS<-sapply(1:nData,function(z) oneSplit(myData,2,splits$x2[z]))
+  
+  # out: sums of squares and splits
+  list(SS=data.frame(splits1.SS=splits1.SS,splits2.SS=splits2.SS),
+       splits=splits)
+}
+```
+
+
+
+## 1.2 Find node 1, fist split variable and split level
+```{r}
+# splits for node 1
+(node1<-selectSplit(tree.data))
+
+# Determine which variable needs split? compare minimum SS for each variable
+(splitVar<-ifelse(min(node1[["SS"]][,"splits1.SS"])>min(node1[["SS"]]["splits2.SS"]),2,1)) # if 2nd variable is smaller returns 2, if 1st variable is smaller, it returns 1
+
+# where to split? row number corresponding to smallest SS
+(splitNum<-as.numeric(ifelse(splitVar==1,which.min(node1[["SS"]][,"splits1.SS"]), which.min(node1[["SS"]][,"splits2.SS"]))))  # if flitVAr is 1, return min of splits1.SS, otherwise return the min of splits2.SS
+
+# What is the split level? row splitNum in column splitVar
+(splitLevel.1<-node1[["splits"]][splitNum,splitVar]) # takes which row and which variable, extracts from splits data frame
+
+```
+
+
+## 1.3 Create 2 regions R1 and R2 breaking the initial sample
+
+```{r}
+# What are the regions created? create subsets based on the split
+(Reg1<-subset(tree.data,tree.data[,splitVar+1]>=splitLevel.1)) # splitVar=1=x1
+(Reg2<-subset(tree.data,tree.data[,splitVar+1]< splitLevel.1))
+
+# Plot the two regions
+plot(sort(tree.data$x1), sort(tree.data$x2), type="n")
+if (splitVar==1) {
+  abline(v=splitLevel.1)
+} else{
+  abline(h=splitLevel.1)
+}
+legend("topright", legend=c("Split 1"), lty=1)
+```
+
+## Which of the regions R1, R2 needs a split?
+
+```{r}
+(node2 <- selectSplit(Reg1)) # This looks like a leaf
+
+# Check if Region 2 needs to be split
+(node2 <- selectSplit(Reg2))
+# Yes this needs further split
+```
+
+## 1.5 Split R2 by creating regions R3 and r4
+
+```{r}
+# Determine which variable needs split? compare minimum SS for each variable
+(splitVar<-ifelse(min(node2[["SS"]][,"splits1.SS"])>min(node2[["SS"]]["splits2.SS"]),2,1)) # if 2nd variable is smaller returns 2, if 1st variable is smaller, it returns 1
+```
+## 1.5 What are the split variables and split levels?
+```{r}
+# where to split? row number corresponding to smallest SS
+(splitNum<-as.numeric(ifelse(splitVar==1,which.min(node2[["SS"]][,"splits1.SS"]), which.min(node2[["SS"]][,"splits2.SS"]))))  # if splitVAr is 1, return min of splits1.SS, otherwise return the min of splits2.SS
+
+# What is the split level? row splitNum in column splitVar
+(splitLevel.2<-node2[["splits"]][splitNum,splitVar]) # takes which row and which variable, extracts from splits data frame
+```
+
+## 1.7 Create the next breakup
+
+```{r}
+# What are the regions created? create subsets based on the split
+(Reg3<-subset(Reg2,Reg2[,splitVar+1]>=splitLevel.2)) # splitVar=1=x1
+(Reg4<-subset(Reg2,Reg2[,splitVar+1]< splitLevel.2))
+
+#plot
+plot(sort(tree.data$x1), sort(tree.data$x2), type="n")
+if (splitVar==1) {
+  abline(v=splitLevel.1)
+  abline(v=splitLevel.2,lty=2)
+} else{
+  abline(h=splitLevel.1)
+  abline(h=splitLevel.2,lty=2)
+}
+
+
+legend("topright", legend=c("Split 1", "Split 2"), lty=c(1,2))
+```
+
+## 1.8 Which region needs a split
+```{r}
+# Check if Region 4 needs to be split
+(node3 <- selectSplit(Reg4)) # This looks like a leaf
+
+# Check if Region 3 needs to be split
+(node3 <- selectSplit(Reg3)) # This needs to be split
+
+```
+
+## 1.9 Select next split variable for R3
+
+
+```{r}
+# Determine which variable needs split? compare minimum SS for each variable
+(splitVar<-ifelse(min(node3[["SS"]][,"splits1.SS"])>min(node3[["SS"]]["splits2.SS"]),2,1)) # if 2nd variable is smaller returns 2, if 1st variable is smaller, it returns 1
+
+# where to split? row number corresponding to smallest SS
+(splitNum<-as.numeric(ifelse(splitVar==1,which.min(node3[["SS"]][,"splits1.SS"]), which.min(node3[["SS"]][,"splits2.SS"]))))  # if splitVAr is 1, return min of splits1.SS, otherwise return the min of splits2.SS
+
+# What is the split level? row splitNum in column splitVar
+(splitLevel.3<-node3[["splits"]][splitNum,splitVar]) # takes which row and which variable, extracts from splits data frame
+
+```
+
+# Create Regions R5 and R6
+
+```{r}
+(Reg5 <- subset(Reg3, Reg3[, splitVar+1]>=splitLevel.3))
+(Reg6 <- subset(Reg3, Reg3[, splitVar+1]<splitLevel.3))
+
+# Plot the splits
+plot(sort(tree.data$x1), sort(tree.data$x2), type="n")
+if (splitVar==1) {
+  abline(v=splitLevel.1)
+  abline(v=splitLevel.2,lty=2)
+  abline(v=splitLevel.3,lty=3)
+} else{
+  abline(h=splitLevel.1)
+  abline(h=splitLevel.2,lty=2)
+  abline(v=splitLevel.3,lty=3)
+}
+legend("topright", legend=c("Split 1", "Split 2", "Split 3"), lty=c(1,2,3))
+
+```
+
+## 1.11 Find mean values of all regions
+```{r}
+#Since all regions except 5  have one observarion, only have to find mean of reg 5
+mean(Reg5$y)
+(nodeMeans <- sapply(1:6, function(z) mean(get(paste0("Reg",z))$y)))
+```
+
+## 1.12 Summary
+
+Initial split is at X1 at level 1.37464
+Second split is at X1 at level -0.97632
+Third split is at X1 at level -0.3135914
+
+## 1.13 Check the splits against fitted Tree
+```{r}
+library(rpart)
+library(rpart.plot)
+built.tree<-rpart(y~., data=tree.data,
+                        control = rpart.control(minbucket=1,cp=.0001))
+printcp(built.tree)
+
+# return best CP
+(best.CP <- built.tree$cptable[which.min(built.tree$cptable[,"xerror"]),"CP"])
+
+# Plot tree
+prp(built.tree,extra=101, # display prob of classes in the node
+    branch=.5, # change angle of branch lines
+    shadow.col="gray", # shadows under the leaves
+    branch.lty=3, # draw branches using dotted lines
+    split.cex=1.2, # make the split text larger than the node text
+    split.prefix="is ", # put "is " before split text
+    split.suffix="?", # put "?" after split text
+    split.box.col="lightgray", # lightgray split boxes (default is white)
+    split.border.col="darkgray", # darkgray border on split boxes
+    split.round=.5,
+    nn=TRUE)
+
+# Find node mean
+nodeMeans
+```
+
