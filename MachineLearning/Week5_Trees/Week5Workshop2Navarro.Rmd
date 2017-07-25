@@ -1,0 +1,80 @@
+---
+title: "ML Workshop2 Week 5"
+author: "John Navarro"
+date: "July 21, 2017"
+output: pdf_document
+---
+
+# 1 Regressions Trees
+
+```{r}
+suppressWarnings(library(rpart))
+suppressWarnings(library(rpart.plot))
+suppressWarnings(library(ISLR))
+suppressWarnings(library(knitr))
+suppressWarnings(library(caret))
+suppressWarnings(library(MASS))
+```
+## 1.1 Predicting Baseball Players' Salaries
+
+Use the Hitters data from the ISLR library, sec 8.1.1 in ISLR
+```{r}
+data("Hitters")
+
+Hitters <- na.omit(Hitters)
+kable(head(Hitters,3))
+```
+
+Predict a baseball players Salary based on the number of Years spent in the majors and the number of Hits the previousyear. Salary is measured in thousands of dollars
+Fitthe model
+```{r}
+salaryFit <- rpart(Salary~Hits+Years, data=Hitters)
+prp(salaryFit,extra=101, # display the number of observations that fall in the node
+    branch=.5, # change angle of branch lines
+    shadow.col="gray", # shadows under the leaves
+    branch.lty=3, # draw branches using dotted lines
+    split.cex=1.2, # make the split text larger than the node text
+    split.prefix="is ", # put "is " before split text
+    split.suffix="?", # put "?" after split text
+    split.box.col="lightgray", # lightgray split boxes (default is white)
+    split.border.col="darkgray", # darkgray border on split boxes
+    split.round=.5,
+    nn=TRUE) # display the node numbers, default is FALSE
+```
+It appears that the tree needs to be pruned. It is only considering hits and years, and gets too complicated on the right.
+Lets quantitatively analyze how to prune the tree based on parameter CP and the error columns.
+```{r}
+salaryFit$cptable
+# compare x error to rel error plus xstd
+cbind("RE+STD"= salaryFit$cptable[,3]+salaryFit$cptable[,5], "xerror"=salaryFit$cptable[,4])
+```
+Rule of thumb shows that the tree should be pruned at 3 splits or at CP 0.020522
+```{r}
+# prune tree after 3rd split
+prunedTree <- prune(salaryFit, cp=salaryFit$cptable[3,1])
+printcp(prunedTree)
+
+#Display pruned tree
+prp(prunedTree,extra=101, # display the number of observations that fall in the node
+    branch=.5, # change angle of branch lines
+    shadow.col="gray", # shadows under the leaves
+    branch.lty=3, # draw branches using dotted lines
+    split.cex=1.2, # make the split text larger than the node text
+    split.prefix="is ", # put "is " before split text
+    split.suffix="?", # put "?" after split text
+    split.box.col="lightgray", # lightgray split boxes (default is white)
+    split.border.col="darkgray", # darkgray border on split boxes
+    split.round=.5,
+    nn=TRUE) # display the node numbers, default is FALSE
+```
+
+This tree is smaller, it separates the players by experience, then splits the experienced group by hits.
+Try pruning by finding the best CP level just by xerror
+```{r}
+printcp(salaryFit)
+```
+```{r}
+plotcp(salaryFit)
+(best.CP <- salaryFit$cptable[])
+```
+
