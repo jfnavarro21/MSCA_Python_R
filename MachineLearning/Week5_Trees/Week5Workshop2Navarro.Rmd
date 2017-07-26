@@ -287,6 +287,7 @@ Calculate probability of zero count by the Poisson tree model for row 6 of data 
 In this section explore application of rules of regression tree to each row of observations.
 ```{r}
 library(plyr)
+library(dplyr)
 library(data.tree)
 library(partykit)
 ```
@@ -306,6 +307,109 @@ rpartPaths<-function(x){
 
 # Analyze unpruned tree which has the following configuration
 plot(as.Node(as.party(sfit)))
+```
+Plotting a different way
+```{r}
+plot(as.Node(as.party(sfit)),output = 'visNetwork')
+```
+Create the matrix of paths
+```{r}
+# Use function created above to determine all the paths and which nodes they go through
+(pts <- rpartPaths(sfit))
+
+# create a vector of all the termina nodes
+# omitting NAs for each row, select the last value in each
+(lvs <- apply(pts, 1, function(z) tail(na.omit(z),1)))
+
+# Create table of numbers of observations in terminal nodes
+# $where gives terminal node for each observation. 
+# table is tallying how many observations end at each terminal node
+(distrInLeaves <- table(sfit$where))
+
+# Create vector of predictions by unpruned tree
+Pred<-round(predict(sfit,newdata=solder),2)
+
+# Collect in one matrix: the data, predictions, terminal nodes and entire paths for each observation
+
+completeTreeMatrix <- cbind(solder, Pred, Where=sfit$where, pts[match(sfit$where, lvs),])
+head(completeTreeMatrix)
+```
+Explore switches at different levels of the tree.
+```{r}
+completeTreeMatrix[58:62,]
+```
+At 61,Opening switched from M to S and padType switched from L9 to W4, Both changes resulted in a jump of predicted value from 0.17 to 1.16, the change of the paht on the tree was from node 2 to node 21 at the second level
+```{r}
+completeTreeMatrix[88:92,]
+```
+Here we see at 91, the path switched back from node 21 to node 2, at level 2 as a result of change in opening and pad type
+```{r}
+completeTreeMatrix[448:462,]
+```
+At 451 there is a big change at level 2 as a result of a change in opening, solder and pad type.
+Between 451 and 462 switches at level5asa result of panel changes. Panel 1 is different from 2 and 3
+```{r}
+completeTreeMatrix[506:512,]
+```
+At 511 a big change as a result of switchin opening
+```{r}
+completeTreeMatrix[538:548,]
+
+```
+From 538 to 548 jittering in level 5 due to pad type switches.
+
+It is possible to select pruning level based on intensity of switches.
+```{r}
+apply(completeTreeMatrix[,10:15],2,
+      function(z) sum(diff(na.omit(z))!=0)/length(na.omit(z)))
+
+# What is !=0 doing here
+
+```
+Noise jumps at level 5. Plot switches at each level
+```{r}
+plot(completeTreeMatrix[,10], type="l", main="Level 2", ylab="Node #")
+```
+```{r}
+plot(completeTreeMatrix[,11], type="l", main="Level3", ylab= "Node#")
+```
+```{r}
+plot(completeTreeMatrix[,12], type="l", main="Level 4", ylab="Node #")
+```
+```{r}
+plot(completeTreeMatrix[,13], main="Level 5", type="l", ylab="Node #")
+```
+```{r}
+plot(completeTreeMatrix[,14], type="l", main="Level 6", ylab="Node#")
+```
+```{r}
+plot(completeTreeMatrix[,15], type="l", main="Level 7", ylab="Node #")
+```
+Note that at level 6, there is a big switch at 511, from node 11 to 36, resulting in change in predicted counts from 4 to 16. But this level is not necessary because closer to the root at level 2 there is a swtich from node 2 to 21
+
+Prune tree to 4 levels. This correpnds to cp level of 
+```{r}
+printcp(sfit)
+prunedFit4 <- prune(sfit, cp=0.0339887)
+prp(prunedFit4,extra=101, # display the number of observations that fall in the node
+    branch=.5, # change angle of branch lines
+    shadow.col="gray", # shadows under the leaves
+    branch.lty=3, # draw branches using dotted lines
+    split.cex=1.2, # make the split text larger than the node text
+    split.prefix="is ", # put "is " before split text
+    split.suffix="?", # put "?" after split text
+    split.box.col="lightgray", # lightgray split boxes (default is white)
+    split.border.col="darkgray", # darkgray border on split boxes
+    split.round=.5,
+    nn=T) # display the node numbers, default is FALSE
+```
+
+```{r}
+# Plot just the node numbers
+plot(as.Node(as.party(prunedFit4)))
+```
+```{r}
+plot(as.Node(as.party(prunedFit4)),output = 'visNetwork')
 ```
 
 ## 1.4.2 Negative Binomial Regresssion Model
@@ -422,7 +526,112 @@ prp(prunedTsFit,extra=101, # display the number of observations that fall in the
     nn=TRUE) # display the node numbers, default is FALSE
 ```
 Interpret the tree:
+Principal component 1 is inversely related to returns of the SPY. As Comp 1 gets larger, we see that the return is more negative, similarly, as Comp 1 gets more negative, we see that the return is more positive. This Component describes the common relation ship of member stocks to the overall broad market index(represented by the SPY)
+Component 2 seems to be considered on the right side of the tree (where returns are positive). But here we see inconclusive splits.
 
+For stocks with component 1 between 0.0095 and -0.0083 we see that a component 2 score GREATER than -0.013 leads to a smaller return, almost zero. While a component score less than -0.013 gives us a slightly positive return. 
+Component 2 also comes into play when Comp 1 is between -0.03 and -0.069, but here we see that if Comp 2 is LESS than -0.015 we get a smaller return and if Comp2 is GREATER than -0.015 we get a positive return.
 
+Create a matrix of paths
+```{r}
+# Use function created above to identify paths
+(tsSPY<-rpartPaths(prunedTsFit))
 
+# Plot the nodes
+plot(as.Node(as.party(prunedTsFit)))
+```
+Create vector of all terminal nodes
+```{r}
+# use tail() with na.omit to find the terminal node values
+(lvsSPY <- apply(tsSPY, 1, function(z) tail(na.omit(z),1)))
+
+# Create a table of the numbers of observations in terminal nodes
+table(prunedTsFit$where)
+
+# Create vector of predictions by the pruned tree
+PredSPY <- round(predict(prunedTsFit, newdata=SPYPortfFactors),6)
+
+# Combine in one matrix, the data, the predictions, terminal nodes and the entire paths
+completeMatrixSPY <- cbind(round(SPYPortfFactors, 4), PredSPY, Where=prunedTsFit$where, tsSPY[match(prunedTsFit$where, lvsSPY),])
+
+# return the head of complete matrix
+head(completeMatrixSPY)
+```
+In general the tree regression model predicted actual returns reasonably well
+```{r}
+# Comparing predicted returns vs actual returns
+plot(completeMatrixSPY[,"PredSPY"],type="l",col="blue",lwd=3,
+     ylim=range(completeMatrixSPY[,"SPY"]))
+lines(completeMatrixSPY[,"SPY"],col="orange")
+legend("top",legend=c("Predicted","Actual"),col=c("blue","orange"),lwd=c(2,1))
+
+# Scatter plot of predicted vs acutal
+plot(completeMatrixSPY[,"PredSPY"],completeMatrixSPY[,"SPY"])
+```
+
+# 2.1 Example. Large number of Predictors
+
+Consider the example analysed in the workshop Linear Regression with Large Number of Predictors
+Simulate data
+```{r}
+# 500 values
+N=500
+
+# set seed for reproducibility
+set.seed(0)
+
+# Create error terms that are random normal distribution
+Epsilon <- rnorm(N,0,1)
+
+# Create X terms random normal distribution
+X <- rnorm(N*N, 0,2)
+
+# Alter X terms into a matrix
+dim(X) <- c(N,N)
+
+#Set col names as Xn
+colnames(X) <- paste0("X", 1:N)
+
+# Calculate slopes as random uniform distribution 500 from 1 to 3
+slopesSet <- runif(N, 1,3)
+
+# Using a linear combination of the values created above
+Y <- sapply(2:N, function(z) 1+X[,1:z]%*%slopesSet[1:z]+Epsilon)
+
+# display head of matrix X
+head(X[,1:5])
+```
+Fit linear regression model with 440 regressors
+```{r}
+m=440
+completeModelDataFrame <- data.frame(Y=Y[,m-1],X[,1:m])
+dim(completeModelDataFrame) #500x441
+m440 <- lm(Y~., data=completeModelDataFrame)
+#summary(m440)
+```
+
+We reduced the number of regressors in completeModelDataFrame in order to ensure that on each iteration of 10-fold cross validation, the number of regressors is less than the number of observations. (The matrix is longer than it is wide)
+The residual standard error of the model is
+```{r}
+summary(m440)$sigma
+
+```
+
+Apply regresssion tree to these data
+```{r}
+treeFit <- rpart(Y~., data=completeModelDataFrame)
+printcp(treeFit)
+plotcp(treeFit)
+```
+Here we see that the trees can't handle this data at all. Cross validatioi error increases almost monotonically. It means that any split implies OVERFITTING and the best tree based prediction model is constnat
+RSE of the constant prediction is
+```{r}
+sd(completeModelDataFrame$Y)
+```
+Use caret to run cross validation
+```{r}
+ctrl <- trainControl(method="cv", number = 10)
+lmTrain <- train(Y~., data=completeModelDataFrame, method="lm", trControl=ctrl)
+lmTrain$results
+```
 
