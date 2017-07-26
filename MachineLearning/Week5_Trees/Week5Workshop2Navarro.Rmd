@@ -75,6 +75,354 @@ printcp(salaryFit)
 ```
 ```{r}
 plotcp(salaryFit)
-(best.CP <- salaryFit$cptable[])
+(best.CP <- salaryFit$cptable[which.min(salaryFit$cptable[,"xerror"]),"CP"])
+prunedTree <- prune(salaryFit, cp = best.CP)
+printcp(prunedTree)
+prp(prunedTree,extra=101, # display the number of observations that fall in the node
+    branch=.5, # change angle of branch lines
+    shadow.col="gray", # shadows under the leaves
+    branch.lty=3, # draw branches using dotted lines
+    split.cex=1.2, # make the split text larger than the node text
+    split.prefix="is ", # put "is " before split text
+    split.suffix="?", # put "?" after split text
+    split.box.col="lightgray", # lightgray split boxes (default is white)
+    split.border.col="darkgray", # darkgray border on split boxes
+    split.round=.5,
+    nn=TRUE) # display the node numbers, default is FALSE
 ```
+After the tree is pruned forecasting is done by averaging the output based on mean values of the tree leafs.
+Finally, it is  possible to look at the residuals from this model, just as with a regular linear regression fit.
+
+```{r}
+plot(predict(prunedTree),resid(prunedTree))
+temp <- prunedTree$frame[prunedTree$frame$var == '<leaf>',]
+axis(3, at = temp$yval, as.character(row.names(temp)))
+mtext('leaf number', side = 3, line = 1)
+abline(h=0, lty=2)
+
+```
+We see that  node 6 has many players andgood concentration around the mean. Node 2 has some outliers.
+Find the MSE of prediction
+```{r}
+(prunedTree.MSE <- sum((Hitters$Salary - predict(prunedTree))^2))
+# 2nd MSE calculation method
+sum(residuals(prunedTree)^2)
+
+```
+Use library(caret) to build the same tree
+```{r}
+set.seed(0)
+# 10 fold cross validation
+ctrl <- trainControl(method="cv", number=10)
+tree.slice <- train(Salary~Hits+Years, data = Hitters, method="rpart", trControl=ctrl)
+tree.slice$results
+
+```
+Plot the tree
+```{r}
+prp(tree.slice$finalModel,extra=101, # display the number of observations that fall in the node
+    branch=.5, # change angle of branch lines
+    shadow.col="gray", # shadows under the leaves
+    branch.lty=3, # draw branches using dotted lines
+    split.cex=1.2, # make the split text larger than the node text
+    split.prefix="is ", # put "is " before split text
+    split.suffix="?", # put "?" after split text
+    split.box.col="lightgray", # lightgray split boxes (default is white)
+    split.border.col="darkgray", # darkgray border on split boxes
+    split.round=.5,
+    nn=TRUE) # display the node numbers, default is FALSE
+```
+Calculate MSE
+```{r}
+# MSE of caret tree method
+caretTree.MSE <- sum((residuals(tree.slice$finalModel))^2)
+
+# Compare the two MSE values
+c(rpart=prunedTree.MSE,caret.rpart=caretTree.MSE)
+
+#Plot the residuals from caret tree method
+matplot(#1:length(resid(prunedTree)),
+        cbind(resid(prunedTree),residuals(tree.slice$finalModel)), pch=c(16,1),col=c("black","red"), ylab="Residuals", xlab="Index")
+```
+Here we can see that both models give the same residual values for each Hitter.
+
+## 1.2 Examples from the introduction to the package Rpart
+
+## 1.3 Introduction to main functions: Cars
+
+The dataset car90 contains a collection of variables from the April, 1990 Consumer Reports; it has 34 variables on 111 cars.Variables tire size and model name are excluded because they are factors with a very large number of levels which creates a very long printout, and rim size because it is too good a predictor of price and leads to a less interesting illustration. (Tiny cars are cheaper and have small rims.)
+```{r}
+# remove rows, use -match with column names to select columns in car90 subset
+cars <- car90[, -match(c("Rim", "Tires", "Model2"), names(car90))]
+# return head of cars
+head(cars)
+
+# create regression tree
+carfit <- rpart(Price/1000~., data=cars)
+carfit
+
+# plot carfit tree
+prp(carfit,extra=101, # display the number of observations that fall in the node
+    branch=.5, # change angle of branch lines
+    shadow.col="gray", # shadows under the leaves
+    branch.lty=3, # draw branches using dotted lines
+    split.cex=1.2, # make the split text larger than the node text
+    split.prefix="is ", # put "is " before split text
+    split.suffix="?", # put "?" after split text
+    split.box.col="lightgray", # lightgray split boxes (default is white)
+    split.border.col="darkgray", # darkgray border on split boxes
+    split.round=.5,
+    nn=TRUE) # display the node numbers, default is FALSE
+
+# Print the complexity parameter table for carfit
+printcp(carfit)
+```
+Re run with the cp threshold at .001
+```{r}
+summary(carfit, cp=0.1)
+```
+plot the observed-expected cost of cars vs predicted cost of cars
+```{r}
+plot(predict(carfit), jitter(resid(carfit)))
+# extract the rows that are leafs
+temp <- carfit$frame[carfit$frame$var == '<leaf>',]
+# label the leaf numbers
+axis(3, at = temp$yval, as.character(row.names(temp)))
+# add the label leaf # to top margin
+mtext('leaf number', side = 3, line = 1.5)
+# draw the zero line
+abline(h = 0, lty = 2)
+```
+Examine how Rsqd improves and how the X relative error drops with growing number of splits
+```{r}
+par(mfrow=c(1,2))
+rsq.rpart(carfit)
+```
+
+## 1.4 Poisson regression: sod example
+
+The Poisson splitting method attempts to extend rpart models to event rate data.
+The model in this case is ??=f(x), where ?? is an event rate and x is some set of predictors. The solder data frame, is a dataset with 900 observations which are the results of an experiment varying 5 factors relevant to the wave-soldering procedure for mounting components on printed circuit boards.
+
+The response variable, skips, is a count of how many solder skips appeared to a visual inspection.
+
+The other variables are:
+Opening factor: amount of clearance around the mounting pad (S<M<L)(
+Solder factor: amount of solder used (Thin<Thick)
+Mask factor: type of solder mask used (5 possible)
+PadType factor: Mounting pad used (10 possible)
+Panel factor: panel (1, 2 or 3) on board being counted
+
+In this call, the rpart.control options are modified:
+
+maxcompete = 2 means that only 2 other competing splits are listed (default is 4);
+cp = .05 means that a smaller tree will be built initially (default is .01).
+The y variable for Poisson partitioning may be a two column matrix containing the observation time in column 1 and the number of events in column 2, or it may be a vector of event counts alone
+
+```{r}
+head(solder,20)
+sfit <- rpart(skips ~ Opening + Solder + Mask + PadType + Panel,data = solder, method ='poisson',
+              control = rpart.control(cp = 0.004, maxcompete = 2))
+printcp(sfit)
+#summary(sfit)
+```
+```{r}
+# Plot the tree
+prp(sfit,extra=101, # display the number of observations that fall in the node
+    branch=.5, # change angle of branch lines
+    shadow.col="gray", # shadows under the leaves
+    branch.lty=3, # draw branches using dotted lines
+    split.cex=1.2, # make the split text larger than the node text
+    split.prefix="is ", # put "is " before split text
+    split.suffix="?", # put "?" after split text
+    split.box.col="lightgray", # lightgray split boxes (default is white)
+    split.border.col="darkgray", # darkgray border on split boxes
+    split.round=.5,
+    nn=TRUE) # display the node numbers, default is FALSE
+```
+The response value is the expected event rate(with a time variable), or in this case the expected number of skips
+The deviance is the same as the null deviance(sometimes called the residual deviance) that you'd get when calculating a Poisson glm model for the given subset of data
+```{r}
+summary(sfit, cp=0.1)
+```
+
+Note the splitting criterion. The improvemnt is Dev(parent) - (DevR + DevL)
+Which is the likelihood ratio test for comparing two Poisson samples
+```{r}
+fit.prune <- prune(sfit, cp=0.1)
+printcp(fit.prune)
+```
+Plot the pruned tree
+```{r}
+prp(fit.prune,extra=101, # display the number of observations that fall in the node
+    branch=.5, # change angle of branch lines
+    shadow.col="gray", # shadows under the leaves
+    branch.lty=3, # draw branches using dotted lines
+    split.cex=1.2, # make the split text larger than the node text
+    split.prefix="is ", # put "is " before split text
+    split.suffix="?", # put "?" after split text
+    split.box.col="lightgray", # lightgray split boxes (default is white)
+    split.border.col="darkgray", # darkgray border on split boxes
+    split.round=.5,
+    nn=T) # display the node numbers, default is FALSE
+```
+The function prune() trims the tree fit to the cp =0.10
+the same tree could have been created by specifying cp = 0.10 in the original call to rpart()
+
+Prepare function for calculating Residual Mean square error of the model
+```{r}
+rmse <- function(x) sqrt(mean(x^2))
+#calc the measure of fit of the pruned tree
+treeRmse<-rmse(resid(fit.prune))
+```
+Calculate probability of zero count by the Poisson tree model for row 6 of data frame solder
+```{r}
+(preTree <- predict(fit.prune, newdata=solder[6,]))
+# probability of zero count
+(pred0Tree<-dpois(0,lambda=preTree))
+```
+
+## 1.4.1 Exploring switches on a tree
+
+In this section explore application of rules of regression tree to each row of observations.
+```{r}
+library(plyr)
+library(data.tree)
+library(partykit)
+```
+prepare a function creating a matrix of all paths from root to leaf on a given tree
+```{r}
+rpartPaths<-function(x){
+  require(plyr)
+  require(partykit)
+  require(rpart)
+  require(data.tree)
+  dtTree<-as.Node(as.party(x)) # transform object into data.tree
+  myPaths<-lapply(dtTree$leaves,     # find all paths from root to leave on the tree
+                  function(z) t(as.matrix(as.numeric(FindNode(dtTree,z$name)$path))))
+  myPaths<-rbind.fill.matrix(myPaths)  # create matrix with variable row lengths
+  myPaths
+}
+
+# Analyze unpruned tree which has the following configuration
+plot(as.Node(as.party(sfit)))
+```
+
+## 1.4.2 Negative Binomial Regresssion Model
+
+Poisson regression does not fit these data well. There is significant overdispersion. Instead, we used negative binomial regression.
+Fit negative binomial regression and compare residuals of both models
+
+```{r}
+modnb <- glm.nb(skips ~ ., solder)
+summary(modnb)
+```
+
+Plot the residuals of both the poisson tree and the Negative binomial
+```{r}
+matplot(1:length(modnb$residuals),cbind(modnb$residuals,resid(sfit)),type="p",pch=c(1,19),xlab="Index",ylab="Residuals",main="Comparison of Tree Regression and NB Regression")
+legend("bottomleft",legend=c("NB","Tree"),col=c("black","red"),lty=1,lwd=3)
+```
+Calculate residual mean square error of the negative binomial model
+```{r}
+(nbRmse <- rmse(modnb$residuals))
+
+# Calculate the probability of zero count by the negative binomial model for row 6 of data frame solder
+mu <- predict(modnb, solder[6,], type="response")
+# density for neg bin distribution. 
+pred0NB <- dnbinom(0, mu=mu, size=modnb$theta)
+
+# Compare mrse of the 2 models
+c(Tree_RMSE=treeRmse, NB_RMSE=nbRmse)
+
+# Compare the probabilities of zero count for row 6 of the data given by the 2 models
+c(tree_0Probability=pred0Tree,NB_0Probability=pred0NB)
+```
+
+# 2. Time series of stock prices
+
+Predict returns of exchange traded fund SPY representing S&P 500 with a group of stock returns of companies in the index. Select year 2014
+
+```{r}
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/MachineLearning/Week5_Trees/"
+SPYPortf<-read.csv(paste(datapath,"spyPortfolio.csv",sep="/"))
+head(SPYPortf,3)
+```
+Create daily log returns of all stocks and SPY
+Make daily log returns of all stock prices lagged one day relative to the daily log returns of SPY
+```{r}
+# take the log of all the data
+SPYPortf<-log(SPYPortf)
+
+#check the data
+head(SPYPortf)
+
+# Lag the data one day relative to the daily log returns
+SPYPortf <- apply(SPYPortf,2,diff)
+
+#check the data
+head(SPYPortf)
+
+```
+Calculate meta features as PCA factors
+```{r}
+# Run PCA on the log differenced data (not including the SPY)
+SPYPortfPCA <- princomp(SPYPortf[,-28])
+
+# extract the factor scores of the first the principal components
+SPYPoptf.factors<-SPYPortfPCA$scores[,1:3]
+
+# create a data frame with 3 factor scores and the log diff of SPY
+SPYPortfFactors<-as.data.frame(cbind(SPYPoptf.factors,SPY=SPYPortf[,28]))
+
+# return the head of the new data frame
+head(SPYPortfFactors)
+```
+Grow a regression tree
+```{r}
+# create a regression tree, using anova
+tsfit <- rpart(SPY ~.,data = SPYPortfFactors, method ='anova',
+              control = rpart.control(cp = 0.001))
+# print cp table
+printcp(tsfit)
+
+# plot the regression tree
+prp(tsfit,extra=101, # display the number of observations that fall in the node
+    branch=.5, # change angle of branch lines
+    shadow.col="gray", # shadows under the leaves
+    branch.lty=3, # draw branches using dotted lines
+    split.cex=1.2, # make the split text larger than the node text
+    split.prefix="is ", # put "is " before split text
+    split.suffix="?", # put "?" after split text
+    split.box.col="lightgray", # lightgray split boxes (default is white)
+    split.border.col="darkgray", # darkgray border on split boxes
+    split.round=.5,
+    nn=TRUE) # display the node numbers, default is FALSE
+```
+Prune the tree
+```{r}
+(best.CP <- tsfit$cptable[which.min(tsfit$cptable[,"xerror"]), "CP"])
+```
+Since the suggested level is 7 nodes deep, let's prune a littel less than suggested by best.CP
+```{r}
+# Prune tsfit at node 11
+prunedTsFit <- prune(tsfit, cp= 0.0022440)
+
+# Plot the pruned tree
+prp(prunedTsFit,extra=101, # display the number of observations that fall in the node
+    branch=.5, # change angle of branch lines
+    shadow.col="gray", # shadows under the leaves
+    branch.lty=3, # draw branches using dotted lines
+    split.cex=1.2, # make the split text larger than the node text
+    split.prefix="is ", # put "is " before split text
+    split.suffix="?", # put "?" after split text
+    split.box.col="lightgray", # lightgray split boxes (default is white)
+    split.border.col="darkgray", # darkgray border on split boxes
+    split.round=.5,
+    nn=TRUE) # display the node numbers, default is FALSE
+```
+Interpret the tree:
+
+
+
 
