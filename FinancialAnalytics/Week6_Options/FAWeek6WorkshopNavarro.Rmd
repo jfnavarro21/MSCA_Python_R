@@ -1,0 +1,355 @@
+---
+title: "FA Workshop week6"
+author: "John Navarro"
+date: "July 27, 2017"
+output: pdf_document
+---
+
+```{r}
+install.packages("drat")
+drat::addRepo("ghrr")
+install.packages("RQuantLib", type="binary")
+
+```
+
+```{r}
+library(RQuantLib)
+library(knitr)
+library(kableExtra)
+```
+
+Set parameters of options
+```{r}
+# Set type of option, underlying price, strike price, interest rate and Time to expiry
+Option.Type<-"call"
+Underlying.Price<-100
+Strike<-100
+Option.Rate<-.01
+Expiry<-1
+```
+
+# 1.1 Effect of volatility
+```{r}
+# Create a sequence of volatilities from 0.05 to 0.50
+Volatilities<-seq(from=.05,to=.5,by=.05)
+
+# Plot to check they are a sequence
+plot(Volatilities,type="b",main="Volatilities")
+```
+
+Calculate at the money calls and puts on stock with zero dividends with increasing volatilities using Black-Scholes-Merton model
+```{r}
+# Create empty vectors for calls and puts
+Calls<-rep(NA,length(Volatilities))
+Puts<-rep(NA,length(Volatilities))
+
+# Use function EuropeanOption to calculate option value and greeks for each volatility level
+Calls<-sapply(Volatilities,function(z) EuropeanOption(type="call", underlying=Underlying.Price,strike=Strike,                                     dividendYield=0,riskFreeRate=Option.Rate, maturity=Expiry, volatility=z))
+
+# Rename columns to align with volatility levels
+colnames(Calls) <- c(seq(from=.05,to=.5,by=.05))
+
+# Print table of Call option's values/greeks per change in volatility level
+kable(Calls)
+
+# Plot Call values vs volatilities
+plot(Volatilities, Calls[1,], type="b", main="ATM Call Values with Increasing Volatility", ylab="Call Value")
+```
+Repeat the same procedure for puts
+```{r}
+# Create table of ATM Put values as volatility level changes
+Puts <- sapply(Volatilities, function(z) EuropeanOption(type="put", underlying=Underlying.Price,strike=Strike,                                     dividendYield=0,riskFreeRate=Option.Rate, maturity=Expiry, volatility=z))
+
+# Rename columns of table to represent volatility levels
+colnames(Puts) <- seq(from=0.05, to=0.5, by=0.05)
+
+# Print out table
+kable(Puts)
+
+#Plot ATM Put values vs Increasing volaitility
+plot(Volatilities, Puts[1,], type="b", main="ATM Put Values with Increasing Volatility", ylab="Put Values")
+```
+
+## 1.2 Calculation of implied volatilities
+
+Given option prices find implied Black Scholes Merton volatilities
+```{r}
+# Calculate the implied volatility for the ATM call at the lowest volatility level
+impVol.call <- EuropeanOptionImpliedVolatility("call", value=unlist(Calls[1,])[1], underlying=Underlying.Price, strike=Strike, dividendYield = 0, riskFreeRate = Option.Rate, maturity = Expiry, volatility = 0.3)
+
+# Calculate the implied volatility for the ATM put at the lowest volatility level
+impVol.put <- EuropeanOptionImpliedVolatility("put", value=unlist(Puts[1,])[1], underlying=Underlying.Price, strike=Strike, dividendYield = 0, riskFreeRate = Option.Rate, maturity = Expiry, volatility = 0.3)
+
+# Confirm the volatility levels
+c(impVol.call, impVol.put, Volatilities[1])
+```
+
+## 1.3 Effect of strike price changes
+
+To find how strike price changes affect put and call values, create a sequence of strike prices
+```{r}
+# Create a sequence of strikes from 80 to 120
+Strikes<-seq(from=80,to=120,by=5)
+```
+Then evealuate calls and puts with such strikes. This time volatility is fixed
+```{r}
+# Create empty vectors for Calls and Puts, with same length as Strikes sequence
+Calls <- rep(NA, length(Strikes))
+Puts <- rep(NA, length(Strikes))
+
+# Calculate the value and greeks for calls at each strike
+Calls <- sapply(Strikes, function(z) EuropeanOption(type="call", underlying=Underlying.Price, strike=z, dividendYield = 0, riskFreeRate = Option.Rate, maturity=Expiry, volatility = .25))
+
+# Rename columns of Calls to represent each strike
+colnames(Calls) <- Strikes
+
+# Print out the table of Call values/greeks at each strike
+kable(Calls)
+
+```
+Create a table of values/greeks for puts at various strikes
+```{r}
+# Calculate the value and greeks for puts at each strike
+Puts <- sapply(Strikes, function(z) EuropeanOption(type="put", underlying=Underlying.Price, strike=z, dividendYield = 0, riskFreeRate = Option.Rate, maturity=Expiry, volatility = .25))
+
+# Rename columns of Puts to represent each strike
+colnames(Puts) <- Strikes
+
+# Print out the table of Put values/greeks at each strike
+kable(Puts)
+```
+Plot the Options as values as strikes change
+```{r}
+matplot(Strikes, cbind(Calls[1,], Puts[1,]), type = "b", pch=16,lty=1,main="Calls and Puts with Changing Strikes", ylab="Option Value")
+legend("top", legend=c("Calls", "Puts"), lty=1, col=c("black","red"))
+```
+Here we see that as the option values increase as we move further in the money. Alternatively, as we move further out of the money, the value of the options decreases.
+
+## 1.4 Effect of Rate
+
+Examine the effect of option values as the rate changes
+```{r}
+# Create a sequence of risk free rates
+Rates <- seq(from=.005, to=.05, by=0.005)
+
+# Create empty vectors for Calls and puts with the length of Rates
+Calls <- rep(NA, length(Rates))
+Puts <- rep(NA, length(Rates))
+
+# Use EuropeanOption to calculate call value and greeks for each rate level
+Calls <- sapply(Rates, function(z) EuropeanOption(type="call", underlying = Underlying.Price, strike = Strike, dividendYield = 0, riskFreeRate = z, maturity = Expiry, volatility = .25))
+
+# Change the column names of calls to represent the different rate levels
+colnames(Calls) <- Rates
+
+# Print the table of option values/greeks
+kable(Calls)
+```
+Repeat the same procedure to calculate different ATM Put values/greeks for varying rate levels
+```{r}
+Puts <- sapply(Rates, function(z) EuropeanOption(type="put", underlying = Underlying.Price, strike=Strike, dividendYield = 0, riskFreeRate = z, maturity=Expiry, volatility = 0.25))
+colnames(Puts) <- Rates
+kable(Puts)
+```
+Plot Call and Put values with changing rates
+```{r}
+matplot(Rates, cbind(Calls[1,], Puts[1,]), type="b", pch=16,lty=1,main="Call and Put Values with Changing Rates", ylab="Option value")
+legend("topleft", legend = c("Calls", "Puts"), lty=1,col=c("black", "red"))
+```
+
+## 1.5 Effect of expiry
+Repeat the same process to examine changes in expiry on options values
+```{r}
+# Create sequence of expiry values
+Expiries <- seq(from=.5, to=1.5, by=.25)
+
+# Create empty vectors with length of Expiries
+Calls <- rep(NA, length(Expiries))
+Puts <- rep(NA, length(Expiries))
+
+# Use EuropeanOption() to calculate values/greeks for ATM call using different times to expiration
+Calls <- sapply(Expiries, function(z) EuropeanOption(type="call", underlying = Underlying.Price, strike=Strike, dividendYield = 0, riskFreeRate = Option.Rate, maturity=z, volatility=0.25))
+
+# Rename column names to reflect the change in expiry
+colnames(Calls) <- Expiries
+
+# Display the table of values and greeks
+kable(Calls)
+```
+Repeat the process for Put values
+```{r}
+Puts <- sapply(Expiries, function(z) EuropeanOption(type="put", underlying = Underlying.Price, strike=Strike, dividendYield = 0, riskFreeRate = Option.Rate, maturity=z, volatility = 0.25))
+
+# Rename column names to reflect changes in expiration lengths
+colnames(Puts) <- Expiries
+
+# Display Table
+kable(Puts)
+```
+Plot the option values vs changes in Expiration length
+```{r}
+matplot(Expiries, cbind(Calls[1,],Puts[1,]), type="b", lty=1, pch=16, col=c("black", "red"), main="ATM Call and Put Values as Expiration changes", ylab="Option Values")
+legend("topleft", legend = c("Calls","Puts"), col=c("black","red"), lty=1)
+```
+
+# 2 Implied volatilities for S&P e-mini options on futures
+
+File "OptionsPrices.csv" contains daily closing prices of December 2007 S&P 500 e-mini options on futures traded on CME.
+The underlying futures ticker is ESZ7.
+Expiration is 12/21/2007.
+E-mini futures options are American, but for maturities under a year their prices are practically the same as for European options. Thus we consider them European.
+
+Read the data.
+```{r}
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/FinancialAnalytics/Week6_Options"
+optionsData = read.csv(paste(datapath,'OptionsPrices.csv',sep='/'),header=TRUE,row.names=1,sep=",")
+dim(optionsData) #209 x 26
+head(optionsData,10)
+```
+The row names show the date of the closing prices.
+
+The columns are:
+Expiry - number of days until expiration;
+Opt Rate - risk-free rate for that date;
+Under - closing price of the underlying futures;
+S1:S11 - eleven strike prices for that day; strike prices are consecutive multiples of 5; strikes S1:S5 are below the current futures price, strikes S7:S11 are above the current futures price and strike S6 is the closest multiple of 5 to the current futures price;
+P1:P5 - put prices corresponding to strikes S1:S5;
+C6 - call price corresponding to strike S6;
+C7:C11 - call prices corresponding to strikes S7:S11;
+P1425 - put price with strike 1425.
+
+Calculate implied volatilities corresponding to closing options prices on March 8, 2007.
+
+```{r}
+dataMarch8<-t(as.numeric(optionsData[9,]))
+```
+Calculate implied volatilities for out-of-the-money puts and calls.
+Recommendation: create a function that does that, it will be useful later.
+
+Steps of the algorithm:
+
+Extract and assign to variables the following information from a row of OptionsPrices.csv:
+Expiry
+Rate. To price futures options we use Black's formula, which means that dividend yield is the same as risk-free rate.
+Underlying
+PutStrikes
+CallStrikes
+PutPrices
+CallPrices
+Calculate implied volatilities of OTM puts
+Calculate implied volatilities of OTM calls
+Return a matrix with column names c("Strikes","Volatilities") and row names corresponding to the type of options
+
+```{r}
+# Extract and assign variables from a row of Options Prices.csv
+myExpiry <- dataMarch8[1]/365
+myRate <- dataMarch8[2]
+myUnderlying <- dataMarch8[3]
+myPutStrikes <- dataMarch8[4:8]
+myCallStrikes <- dataMarch8[9:14]
+myPutPrices <- dataMarch8[15:19]
+myCallPrices <- dataMarch8[20:25]
+```
+Calculate implied volatilities of OTM puts
+```{r}
+# Create empty vector
+put.imp.vol <- rep(NA, length(myPutStrikes))
+
+# Create a matrix of put strikes and put prices
+opt.mat <- cbind(myPutStrikes, myPutPrices)
+opt.mat
+
+# Use EuropeanOptionImpliedVolatility() to calculate implied volatities from the matrix of Put strikes and put prices
+put.imp.vol <- apply(opt.mat,1, function(z) EuropeanOptionImpliedVolatility("put", value=z[2],underlying=myUnderlying,
+                                strike=z[1], dividendYield=myRate, riskFreeRate=myRate,
+                                maturity=myExpiry,volatility=.3))
+
+put.imp.vol
+```
+Calculate implied volatilities of OTM Calls
+```{r}
+# Create empty vector
+call.imp.vol <- rep(NA, length(myCallStrikes))
+
+# Create a matrix of call strikes and call prices
+opt.mat <- cbind(myCallStrikes, myCallPrices)
+opt.mat
+
+# Use EuropeanOptionImpliedVolatility() to calculate implied volatities from the matrix of Call strikes and Call prices
+Call.imp.vol <- apply(opt.mat,1, function(z) EuropeanOptionImpliedVolatility("call", value=z[2],underlying=myUnderlying,
+                                strike=z[1], dividendYield=myRate, riskFreeRate=myRate,
+                                maturity=myExpiry,volatility=.3))
+
+Call.imp.vol
+```
+Return a matrix with column names c("Strikes", Volatilities), and row names corresponding to the type of options
+```{r}
+# Create Implied Volatility Matrix by cbinding Put Strikes and Vols, and cbinding Call Strikes and Vols. Then rbinding both of those together
+ImpVolMat <- rbind(cbind(myPutStrikes, put.imp.vol), (cbind(myCallStrikes, Call.imp.vol)))
+
+# Rename the columns Strikes and Volatilities
+colnames(ImpVolMat) <- c("Strikes", "Volatilities")
+
+# Create 11 Put/Call labels
+PC <- c(rep("P",5),rep("C",6))
+
+#Rename rows
+rownames(ImpVolMat) <- PC
+
+#Return the matrix
+ImpVolMat
+```
+
+#############Need to create a function###########
+
+
+```{r}
+# Rename the matrix
+Vols <- ImpVolMat
+```
+
+
+Plot the Vols
+```{r}
+plot(Vols, type="b")
+```
+
+Check that the implied volatilities recover the original options premia
+```{r}
+# Create an empty vector
+premia<-rep(NA,11)
+
+# loop to calculate premia for each strike
+for (i in 1:11){
+  premia[i]<-unlist(EuropeanOption(type=ifelse(rownames(Vols)[i]=="P","put","call"), 
+                                             underlying=dataMarch8[3], 
+                                             strike=Vols[i,1], 
+                                             dividendYield=dataMarch8[2],
+                                             riskFreeRate=dataMarch8[2], 
+                                             maturity=dataMarch8[1]/365, 
+                                             volatility=Vols[i,2]))[1]
+}
+checkPremia<-cbind(strikes=dataMarch8[4:14],
+      calculatedOptionPremia=unlist(premia),
+      originalOptionsPremia=dataMarch8[15:25],
+      differences=unlist(premia)-dataMarch8[15:25])
+rownames(checkPremia)<-colnames(optionsData)[15:25]
+checkPremia
+```
+
+Calculate call price with strike 1420 on the same day using put-call parity.
+Put = Call + Strike*exp(-RT) - Underlying
+...rearranging we get
+call = Put - (Strike*exp(-RT)) + Underlying 
+```{r}
+
+call=56.76158 -(1420*exp(-(myRate*myExpiry))) + 1441.5  
+call #135.1302 should be 77.40051
+
+# Confirmation using EuropeanOption()
+call.check <- EuropeanOption(type="call", underlying = 1441.5, strike=1420,
+                         dividendYield=myRate, riskFreeRate=myRate, maturity=myExpiry,
+                         volatility= 0.1368789)
+call.check$value #77.4007
+```
+

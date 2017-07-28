@@ -1,0 +1,81 @@
+---
+title: "FA Homework 6"
+author: "John Navarro"
+date: "July 28, 2017"
+output: pdf_document
+---
+
+A stock index is currently at 810 and has volatility of 20%.
+The risk-free rate is 5% per year.
+Assume that dividend yield equals 1%
+RQuantLib.
+```{r}
+# Install packages
+library(RQuantLib)
+```
+## 1. Price European 6-month call option with strike 800 using EuropeanOption() from 
+
+```{r}
+#Create and Assign variables
+hwUnderlying <- 810
+hwVolatility <- .20
+hwRate <- .05
+hwDivYield <- .01
+hwStrike <- 800
+hwMaturity <- .5
+
+# Use EuropeanOption to calculate Call value and greeks
+hwcall <- EuropeanOption(type="call", underlying = hwUnderlying, strike=hwStrike,
+                         dividendYield=hwDivYield, riskFreeRate=hwRate, maturity=hwMaturity,
+                         volatility=hwVolatility)
+
+# Return the call's price
+hwcall$value # 58.73271
+```
+
+## 2. Calculate the same premium manually using the formulas on the last slide of the lecture notes
+C=S0N(d1) - (K*exp(-RT))N(d2) ### what is N here? Normal distribution?
+d1=(ln(S0/k) + (R + .5sigma^2)*T)/(sigma*sqrt(T))
+d2=d1 - (sigma*sqrt(T))
+
+```{r}
+d1=(log(hwUnderlying/hwStrike) + (hwRate + .5*(hwVolatility^2))*hwMaturity)/(hwVolatility*sqrt(hwMaturity))
+
+d2 = d1 - (hwVolatility*sqrt(hwMaturity))
+
+C = (hwUnderlying * d1) - ((hwStrike*exp(-hwRate * hwMaturity))*d2)
+
+C #120.3204
+
+############This is not close to hwcall$value 58.73271
+```
+
+Think how dividend yield should affect option price.
+The higher the dividend yield, the lower the call price. 
+
+###########Why is this#######################
+
+## 3. Calculate the premium of put option with the same expiry and same strike using put-call parity
+
+Put = Call + Strike*exp(-RT) - Underlying
+```{r}
+# Use hwcall$value # 58.73271 from Part 1
+
+# Use Put Call Parity equation
+hwput.parity = hwcall$value + (hwStrike * exp(-hwRate*hwMaturity)) - hwUnderlying
+
+# Return the put's price
+hwput.parity # 28.98064
+
+# Use EuropeanOption to check put value
+hwput <- EuropeanOption(type="put", underlying = hwUnderlying, strike=hwStrike,
+                         dividendYield=hwDivYield, riskFreeRate=hwRate, maturity=hwMaturity,
+                         volatility=hwVolatility)
+
+# Return the put's price
+hwput$value #33.02053
+
+############### Why are these different?###################3333333
+
+```
+
