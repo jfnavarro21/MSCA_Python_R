@@ -1,0 +1,261 @@
+---
+title: "MLWeek6Workshop1"
+author: "John Navarro"
+date: "July 28, 2017"
+output: pdf_document
+---
+# Introduction
+## 1.1 Classification
+
+In machine learning and statistics, classification is the problem of assigning a new observation to one of several predefined categories. Solution is obtained on the basis of a training set of data containing observations (or instances) whose category membership is known (supervised learning).
+
+Denote 
+X is the set of objects
+Y is a finite set of classes
+function: X->Y
+Lm = (x1,f(x1)),....(xm,f(xm)) is the learning sample
+
+Function f classifies objects correctly, but we are given only set Lm. Hence we know function f only on the subset of X. The goal is to find an algorithm classifying all objects from X
+
+Generalization of an "ordinary" classification is probabilistic classification that is able to predict, given a new object, a probability distribution over a set of classes, rather than only outputting the most likely class taht the objectshould belong to.
+
+##1.2 Classification performance evaluation:2 classes
+
+Begin with assessing binary classification quality.
+Suppose that only 2 object types are possible
+Y={y1,Y2}
+A confusion matrix is a table that is often used to describe the performance of a classification model(or "classifier") on a set of test data for which the true values are known. 
+
+### Example
+
+A total of 1000 people were tested for a disease.
+Out of those 1000 people, the test returned:
+Positive results(predicting disease) 180 times
+Negative results(predicting no disease) 820 times
+
+Further test showed that in reality 900 of tested people did not have disease(Y2) and 100 people had it (Y1). For the 80 patients with disease test results came back positive and for other 20 diseased patients the test results were negative. Then the corresponding confusion matrix is
+
+```{r}
+confusion=data.frame('Tested negative'=c(800,20), 'Tested Positive'=c(100,80))
+rownames(confusion)=c("No disease", "disease")
+colnames(confusion)=c("Tested negative", "Tested positive")
+confusion
+```
+
+Introduce some related notations
+
+True Positive TP: These are cases in which people who test positive had the disease
+True Negative TN: These are cases in which people who test negative did not have the disease
+False Positive FP: Test cam back positive, but the person had no disease (Type 2 error)
+False Negative FN: Test came back negative, but the person had the disease (Type 1 error)
+
+Confusion matrix is a 2x2 matrix containing values TP, Tn, FP, FN. 
+
+The statistics commonly calculated from confusion matrix are:
+```{r}
+TN=confusion[1,1]
+FP=confusion[1,2]
+FN=confusion[2,1]
+TP=confusion[2,2]
+total=sum(confusion)
+Disease=sum(confusion[2,])
+Nodisease=sum(confusion[1,])
+TestedPositive=sum(confusion[,2])
+TestedNegative=sum(confusion[,1])
+
+# Accuracy: overall how often is the classifier correct?
+accuracy=(TP+TN)/total
+
+# Misclassification rate: Overall how often is it wrong. Equivalent to 1 minus accuracy, also known as "Error Rate"
+misclassificationRate=(FP+FN)/total
+
+# True Positive Rate: When the person has disease, how often test result is positive? It is also known as Sesitivity or Recall
+truePositiveRate=TP/Disease
+
+#False Positive Rate: Given that the person has no disease, how often the test result is positive
+falsePositiveRate=FP/Nodisease
+
+# Specificity: Given that the person has no disease, how often is the test negative? Equivalent to 1 minus False Positive Rate
+specificity=TN/Nodisease
+
+# Precision: When test is positive, how often is it correct?
+precision=ifelse(TP==0,0,TP/TestedPositive)
+
+# Prevalence: What is the proportion of people with the disease
+prevalence=Disease/total
+```
+
+### 1.2.1 Accuracy
+
+Accuracy defined above is often the starting poing for analyzing the quality of a predictive model, as well as an obvious criterion for prediction.
+It is the first characteristic the package caret shows in cross validation results.
+Accuracy measures the ratio of correct predictions to the total number of cases evaluated.
+It may seem obvious that the ratio of correct predictions to cases should be a key metric. 
+But be careful! a predictive model may have high accuracy, but be useless.
+
+Accuracy paradox: it is possible to use a degenearte classification algorithm that simply assigns "negative" class to all visits. This can have a higher accuracy than a model that separates.
+
+###1.2.2 Cohen'sKappa
+
+The second characteristic that package caret shows in cross validation results is Cohen's Kappa. This is essentially a measure of how well the classifier performed as compared to how well it would have performed simply by chance. 
+The expression for kappa is k=(Accuracy-RandomAccuracy)/(1-RandomAccuracy)
+
+Similar to correlation coefficient, Kappa can range from -1 to +1, where 0 represents the quality that can be expected from random classifier. and 1 represents perfect predicting quality. While kappa values below 0 are theoretically possible, Cohen notes that they are unlikely in practice. As with all correlation statistics, the kappa is a standardized and unitless vlaue and thus has universal interpretation. Calculate Cohen's Kappa for the accuracy paradox confusion matrix assigning every observation to "Negative"
+
+
+
+
+```{r}
+# Set matrix values
+TN=10150
+FN=150
+FP=0
+TP=0
+TestedPositive=250
+# Calcualte Random Accuracy
+RA=(((TN+FP)*(TN+FN))+((FN+TP)*(TP+FP)))/(TN+FN+FP+TP)
+RA
+# Calculate Accuracy
+ACC=(TP+TN)/(TN+FN+FP+TP)
+ACC
+# Calculate Cohen's Kappa
+k = (ACC-RA)/(1-RA)
+k
+
+
+```
+
+# 1.2.3 F-measure
+```{r}
+# Fraud is Positive
+TN=10000
+FN=50
+FP=150
+TP=100
+TestedPositive=250
+# Disease is sum of 2nd row
+Disease=150
+
+# Sensitivitiy or Recall
+(Recall <- TP/Disease) #0.6666667
+
+# Precision
+(precision = ifelse(TP==0,0,TP/TestedPositive))#0.4
+
+F=(2*precision*Recall)/(precision+Recall)
+F #0.5
+
+# Fraud is Negative
+TN=100
+FN=150
+FP=50
+TP=10000
+TestedPositive=10050
+Disease=10150
+# Sensitivitiy or Recall
+(Recall <- TP/Disease) #0.9852217
+
+# Precision
+(precision = ifelse(TP==0,0,TP/TestedPositive)) #0.9950249
+
+F=(2*precision*Recall)/(precision+Recall)
+F #0.990099
+
+```
+
+### 1.2.4 ROC curve
+
+ROC curve is commonly used graph that summarizes the performance of a classifier over all possible thresholds. It is generated by plotting the True Positive Rate(y-axis) against the False positive rate(x-axis) for different values of threshold for assigning observations to a given class
+AUC (Area Under Curve) is a good way to summarize ROC performance in a single number
+The origin of term "ROC" is signal preocessing. It is an acronym for Receiver Operating Characteristics.
+ROC curve was first developed by electrical engineers and radar engineers during WW2 for detecting enemy objects in battlefields and was soon introduced to psychology to account for perceptual detection of stimuli
+
+In the next example consider ROC curve for logistic regression classififcation of two 2 dimentional normal samples
+
+Install packages
+```{r}
+library(ggplot2)
+library(Deducer)
+```
+ 
+```{r}
+# normal distributions parameters
+meanP=c(0,0)
+sdP=c(2,1)
+meanN=c(1,1)
+sdN=c(1,2)
+
+# sample sizes
+nP=100
+nN=300
+
+#simulate 2 samples
+dataROC <- data.frame(x = c(rnorm(nP,meanP[1],sdP[1]),
+                            rnorm(nN,meanN[1],sdN[1])),
+                       y = c(rnorm(nP,meanP[2],sdP[2]),
+                             rnorm(nN,meanN[2],sdN[2])),
+                       class = c('Positive','Negative')[1+c(rep(1,nP),rep(0,nN))]) 
+ggplot(dataROC, 
+       aes(x=x, y=y, color=class)) + 
+  geom_point()+ 
+  scale_color_hue(l=65, c=100)+ 
+  scale_color_manual(values=c("orange", "blue"))
+```
+
+Getting ROC curve for logistic regression
+```{r}
+model.glm <- glm(formula=class~., family=binomial("logit"), data=dataROC)
+rocplot(model.glm)
+```
+
+# 2 Recursive Partitioning Using the RPArt package
+
+
+
+## 3.2 Example. Rectangular class domain
+
+Each observation is three-dimensional vector with two numeric features and one categorical (type) with possible values 'Positive' or 'Negative'.
+The goal is to identify type on the basis of first two features.
+
+```{r}
+N = 1000
+xPos = 0.2
+yMinPos = 0.2
+yMaxPos = 0.7
+newData = data.frame(x=runif(N),y=runif(N))
+newData$type = with(newData,ifelse(x>xPos & y>yMinPos & y<yMaxPos,
+                        'Positive','Negative'))
+```
+Add noise and reshuffle
+```{r}
+n = N/10
+newData$type[1:n] = c('Positive','Negative')[1+rbinom(n, 1, 0.5)]
+newData = newData[sample(nrow(newData)),] 
+```
+Plot the data
+```{r}
+ggplot(newData, aes(x=x, y=y, color=type)) + geom_point()+ scale_color_hue(l=65, c=100)+ scale_color_manual(values=c("orange", "blue"))
+head(newData)
+max(newData$y)
+```
+Fit logistic regression and tree model with caret and compater their predictive quality
+
+```{r}
+# use caret() package to create both models
+
+# Set the model formula
+newModelFormula=formula('type~.')
+
+# use train() for glm
+logrTrain <- train(newModelFormula, data=newData,method="glm", trControl=ctrl)
+
+# use train() for rpart
+treeTrain <- train(newModelFormula, data=newData, method="rpart", trControl=ctrl)
+
+# return logistic regression results
+logrTrain$results
+
+# return tree results
+treeTrain$results
+```
+Here we can see that the Kappa from Logistic regression (0.14)is significantly lower than the Kappa from Tree model(0.879/0.765)
