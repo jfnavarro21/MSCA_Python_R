@@ -210,7 +210,222 @@ rocplot(model.glm)
 
 # 2 Recursive Partitioning Using the RPArt package
 
+## 2.1 Example Manual implementation of Gini impurity measure
 
+To understand Gini impurity measure create a simple vector containing 2 classes:
+Create predictor and data frame.
+```{r}
+library(rpart)
+library(rpart.plot)
+```
+```{r}
+ClassesTest <- c(0,1,1,0,1)
+PredictorsTest <- c(1,2,3,4,5)
+TestData <- as.data.frame(cbind(PredictorsTest, ClassesTest))
+plot(TestData)
+```
+Run classification tree algorithm
+```{r}
+testTree <- rpart(ClassesTest~PredictorsTest, data=TestData, control=rpart.control(cp=0.00, minbucket = 1, minsplit = 2, method="class"))
+printcp(testTree)
+```
+The table shows the splits, the cost function for the complexity of the tree(cp) and the two errors:before and after cross validation
+Visualize the tree
+```{r}
+prp(testTree,extra=4, # display prob of classes in the node
+    branch=.5, # change angle of branch lines
+    shadow.col="gray", # shadows under the leaves
+    branch.lty=3, # draw branches using dotted lines
+    split.cex=1.2, # make the split text larger than the node text
+    split.prefix="is ", # put "is " before split text
+    split.suffix="?", # put "?" after split text
+    split.box.col="lightgray", # lightgray split boxes (default is white)
+    split.border.col="darkgray", # darkgray border on split boxes
+    split.round=.5)
+```
+
+
+
+## 2.2 Example: Mixture model
+
+Create a mixture model of 2 gaussian distributions
+```{r}
+library(nor1mix)
+```
+```{r}
+set.seed(3890)
+# Assign two sets of means/sd/weights, plot the mixed sample
+norMixObj <- norMix(mu=c(3,4.5), sigma = c(.4,.5), w=c(.6,.4))
+plot(norMixObj)
+
+```
+```{r}
+mixModelSample<-rbind(cbind(rnorm(600,mean=3,sd=.4),rep(0,600)),cbind(rnorm(400,mean=4.5,sd=.5),rep(1,400)))
+hist(mixModelSample[,1])
+plot(density(mixModelSample[,1]))
+```
+Reshuffle the rows
+```{r}
+mixModelSample <- mixModelSample[sample(nrow(mixModelSample)),]
+library(mclust)
+EstimatedModel <- Mclust(mixModelSample[,1], modelNames="V")
+names(EstimatedModel)
+EstimatedModel$parameters
+#sd
+sqrt(EstimatedModel$parameters$variance$sigmasq)
+
+```
+
+Plot theoretical density, density estimated without mix model and density estimated by the model
+```{r}
+mclust1Dplot(mixModelSample[,1], parameters = EstimatedModel$parameters,what = "density", xlab = "PPM",lwd=2,ylim=c(0,.7))
+lines(density(mixModelSample[,1]),col="red",lwd=2)
+lines(norMixObj,col="blue",lwd=2)
+legend("topright",legend=c("Theo","No Model","Mclust"), lty=1,lwd=2,col=c("blue","orange","black"))
+```
+Show the classification uncertainty
+```{r}
+rule<-mixModelSample[which.max(EstimatedModel$uncertainty),1]
+mclust1Dplot(mixModelSample[,1], parameters = EstimatedModel$parameters,what = "uncertainty",z=EstimatedModel$z, xlab = "PPM")
+abline(v=rule)
+```
+where vertical line is at 3.7039228.
+
+This is the classification rule given by mclust.
+The classification plot shows that.
+```{r}
+mclust1Dplot(mixModelSample[,1], parameters = EstimatedModel$parameters,what = "classification",z=EstimatedModel$z, xlab = "PPM")
+abline(v=rule)
+```
+
+Plot classification errors
+```{r}
+mclust1Dplot(mixModelSample[,1], parameters = EstimatedModel$parameters,what = "errors",truth=mixModelSample[,2] ,z=EstimatedModel$z, xlab = "PPM")
+```
+Now do the same classification using tree
+Note that mclust did the clustering. This method does not use training sample like rpart does. Of course, in exchange mclust knowas about the model assumption: normal mixed model
+
+prepare the data for rpart and grow the tree
+```{r}
+colnames(mixModelSample)<-c("X","Y")
+head(mixModelSample)
+mixModelSample <- as.data.frame(mixModelSample)
+myMixTest <- rpart(Y~X, data = mixModelSample, control=rpart.control(cp=0.00, minbucket = 1, minsplit=2), method="class")
+printcp(myMixTest)
+prp(myMixTest,extra=4, # display prob of classes in the node
+    branch=.5, # change angle of branch lines
+    shadow.col="gray", # shadows under the leaves
+    branch.lty=3, # draw branches using dotted lines
+    split.cex=1.2, # make the split text larger than the node text
+    split.prefix="is ", # put "is " before split text
+    split.suffix="?", # put "?" after split text
+    split.box.col="lightgray", # lightgray split boxes (default is white)
+    split.border.col="darkgray", # darkgray border on split boxes
+    split.round=.5)
+```
+This tree is large, but xerror shows that it can be pruned
+```{r}
+# returns the CP value of the row with the lowest cross validation erro
+(best.CP <- myMixTest$cptable[which.min(myMixTest$cptable[,"xerror"]),"CP"])
+```
+```{r}
+# Prune the tree
+myMixTest.pruned <- prune(myMixTest, best.CP)
+
+# plot the pruned tree
+prp(myMixTest.pruned,extra=4, # display prob of classes in the node
+    branch=.5, # change angle of branch lines
+    shadow.col="gray", # shadows under the leaves
+    branch.lty=3, # draw branches using dotted lines
+    split.cex=1.2, # make the split text larger than the node text
+    split.prefix="is ", # put "is " before split text
+    split.suffix="?", # put "?" after split text
+    split.box.col="lightgray", # lightgray split boxes (default is white)
+    split.border.col="darkgray", # darkgray border on split boxes
+    split.round=.5)
+```
+```{r}
+summary(myMixTest.pruned)
+```
+Compare the classification rule with that of mclust
+```{r}
+c(ruleMclust = mixModelSample[which.max(EstimatedModel$uncertainty),1], ruleTree=myMixTest.pruned$splits[4])
+
+```
+
+## 2.3 Example: Otto Product Classification
+
+In this example we will use data set, provided by Otto Group for Kaggle competition Otto Group Product Classification Challenge.
+
+The goal of the project was categorization about 200,000 unspecified products into 9 classes based on 93 unspecified features.
+For simplicity we reduced in this example the number of products and the number of classes.
+
+### 2.3.1 Structure of the Data
+
+Read the data
+```{r}
+library(fBasics)
+library(knitr)
+```
+
+```{r}
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/MachineLearning/Week6_Trees_Classification"
+
+Data = read.csv(paste(datapath,'DTTrain.csv',sep='/'),header=TRUE)
+```
+Explore the training data
+```{r}
+dim(Data)
+kable(head(Data[,1:5],3))
+kable(Data[1:3,(ncol(Data)-4):ncol(Data)])
+```
+Each column represents an integer feature
+Each row corresponds to a product
+The first column is the time of information acquisition. The last column is the target variable, ie the product class. This column is excluded from the test data
+```{r}
+# last column name, which is the class, response
+classColName=tail(colnames(Data),1)
+Data[1:5, classColName]
+```
+The class variable is a character string in the 95th column and is called target
+
+The rows of the training data set are sorted in ascending order of class numbers
+In order to apply cross validation, a built in part of rpart, we need to reshuffle the rows before the analysis.
+Set seed for reproducibility.
+```{r}
+set.seed(8)
+xTrain=Data[sample(nrow(Data)),-1] # remove time stamp
+dim(xTrain)
+```
+
+### 2.3.2 Creating and Plotting Small Classification Trees
+
+Create formula for the tree.
+```{r}
+(formula=formula(paste(classColName,'.',sep='~')))
+
+```
+
+build ther ree. use one control parameter min bucket
+```{r}
+set.seed(8)
+smallTree <- rpart(formula, data=xTrain,control = rpart.control(minbucket=250,cp=.0001))
+printcp(smallTree)
+```
+The table in the output shows the summary of the fitted tree.
+Rows correspond to different sizes of the tree
+The table has the following columns
+CP- shows complexity parameter controlling the tree size
+nsplit- number of splitting nodes in the tree
+rel error-the error of the training set relative to the error with no splits
+xerror -  the relative error of the test set calculated with kfold cross validation
+xstd standard deviation of xerror
+
+Plot cross validation x error vs tree size and complexity parameter
+```{r}
+plotcp(smallTree)
+```
+the horizontal dotted line shows the level of 1 standard error above the minimum of xerror
 
 ## 3.2 Example. Rectangular class domain
 
@@ -259,3 +474,107 @@ logrTrain$results
 treeTrain$results
 ```
 Here we can see that the Kappa from Logistic regression (0.14)is significantly lower than the Kappa from Tree model(0.879/0.765)
+
+
+
+#4 Classification
+
+## 4.1 otto Product
+
+```{r}
+suppressWarnings(library(fBasics))
+Data = read.csv(paste(datapath,'DTTrain.csv',sep='/'),header=TRUE)
+dim(Data) # dataset dimensions
+```
+ 
+### 4.1.1 Random forest
+ 
+ eta learning rate, if its small, converges longer, but more accurate
+```{r}
+rfOtto <- randomForest(target~., data=xTrain,ntree=100)
+rfPred <- predict(rfOtto, xTest, type="prob") # predict probabilities
+rfPred[1:5,]
+```
+
+#### 4.1.2 Gradient boosting
+
+```{r}
+set.seed(13)
+testInd = sample(nrow(Data), nrow(Data)/3)
+xTrain = Data[-testInd,-1]
+xTest = Data[testInd,-1]
+yTrain = as.factor(Data$target[-testInd])
+yTest = Data$target[testInd]
+xgbTrain = data.matrix(xTrain[,-ncol(xTrain)])
+xgbTest = data.matrix(xTest[,-ncol(xTest)])
+yTrain = as.integer(yTrain)-1
+yTest = as.integer(yTest)-1
+table(yTrain)
+```
+```{r}
+
+numClasses = max(yTrain) + 1
+param <- list("objective" = "multi:softprob",
+              "eval_metric" = "mlogloss",
+              "num_class" = numClasses)
+```
+
+```{r}
+cv.nround <- 10
+cv.nfold <- 3
+set.seed(1)
+(bst.cv = xgb.cv(param=param, data = xgbTrain, label = yTrain, 
+                nfold = cv.nfold, nrounds = cv.nround,verbose=F))
+```
+
+```{r}
+rf_target_IndMat<-dummy.data.frame(data=as.data.frame(yTest), 
+                                     sep="_", verbose=F, 
+                                     dummy.class="ALL")
+rf_target_IndMat[1:10,]
+(rfLogLoss = MultiLogLoss(rf_target_IndMat,rfPred))
+bst = xgboost(param=param, data = xgbTrain, label = yTrain, 
+              nrounds=cv.nround,verbose=F)
+xgbPred <- matrix(predict(bst, xgbTest), ncol = numClasses, byrow = TRUE)
+head(xgbPred)
+```
+
+```{r}
+gb_target_IndMat<-dummy.data.frame(data=as.data.frame(yTest), 
+                                     sep="_", verbose=F, 
+                                     dummy.class="ALL")
+print(list(RF = rfLogLoss ,XGB = MultiLogLoss(gb_target_IndMat,xgbPred)))
+```
+```{r}
+MultiLogLoss <- function(act, pred)
+{
+  eps = 1e-15;
+  if (!is.matrix(pred)) pred<-t(as.matrix(pred))
+  if (!is.matrix(act)) act<-t(as.matrix(act))
+  nr <- nrow(pred)
+  pred = matrix(sapply( pred, function(x) max(eps,x)), nrow = nr)      
+  pred = matrix(sapply( pred, function(x) min(1-eps,x)), nrow = nr)
+  #normalize rows
+  ll = sum(act*log(sweep(pred, 1, rowSums(pred), FUN="/")))
+  ll = -ll/nrow(act)
+  return(ll);
+}
+```
+
+```{r}
+param <- list("objective" = "multi:softprob",
+              "eval_metric" = "mlogloss",
+              "num_class" = numClasses)
+cv.nround <- 20
+# run xgb cross validation with specified nrounds
+bst.cv = xgb.cv(param=param, data = xgbTrain, label = yTrain, 
+              nrounds=cv.nround,nfold=cv.nfold,verbose=F)
+# run xgboost with same # of rounds
+bst = xgboost(param=param, data = xgbTrain, label = yTrain, 
+              nrounds=cv.nround,verbose=F)
+# predict using bst on xgbTest data
+xgbPred <- matrix(predict(bst, xgbTest), ncol = numClasses, byrow = TRUE)
+
+print(list(RF = rfLogLoss ,XGB = MultiLogLoss(gb_target_IndMat,xgbPred)))
+```
+
