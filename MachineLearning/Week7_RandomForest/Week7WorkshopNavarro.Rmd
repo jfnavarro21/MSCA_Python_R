@@ -129,7 +129,6 @@ There is a remaining pattern in the residuals, but we observe a significant redu
 In order to repeat the steps of gradient boosting several more times create a function simpleLearner<-function(mySignal) which takes a signal vector and splits it into 2 groups using Mclust(), returning vector of the next learner predicted values.
 
 ```{r}
-
 simpleLearner <- function(mySignal){
   # separate the input vector into 2 groups using Mclust
   model <- Mclust(mySignal, G=2)
@@ -142,25 +141,167 @@ residuals2 <- simpleLearner(residuals1)
  head(residuals2) 
  
  
- data$learner12<-data$learner1+simpleLearner(residuals1)
+data$learner12<-data$learner1+simpleLearner(residuals1)
 myPlot(data)
 
 ```
+The combination of the two simple learners creates a pattern with 4 levels, which captures the signal much better. Create new residuals and repeat the iteration step one more time.
+
 ```{r}
 residuals2<-data$signal-data$learner12
 plot(residuals2)
+(sd2 <- sd(residuals2))
+# compare the change in sd through the steps
+c(sd(data$signal), sd1, sd2)
 ```
+Again, this step significantly reduced standard deviation of the residuals. Create new learner combining 3 iterations
+```{r}
+# run the learner function, and add column of predictions to data
+data$learner123 <- data$learner12+simpleLearner(residuals2)
+# plot the data w prediction of 3rd learner
+myPlot(data)
+```
+At 8 levels the signal is captured better, make another iteration
+```{r}
+# calculate and visualze the residuals
+residuals3 <- data$signal-data$learner123
+plot(residuals3)
+# extract the sd of the newest residuals
+(sd3 <- sd(residuals3))
+# compare the sds of the process
+c(sd(data$signal), sd1, sd2, sd3)
 
+# Create the 4th learner column of data
+data$learner1234 <- data$learner123+simpleLearner(residuals3)
+#plot
+myPlot(data)
+```
+```{r}
+# calculate the residuals and plot
+residuals4 <- data$signal-data$learner1234
+plot(residuals4)
+# calculate the sd and compare
+(sd4 <- sd(residuals4))
+c(sd(data$signal), sd1,sd2,sd3,sd4)
+```
+Try a final time
+```{r}
+# repeat all the steps
+data$learner12345<-data$learner1234+simpleLearner(residuals4)
+myPlot(data)
+residuals5<-data$signal-data$learner12345
+plot(residuals5)
+(sd5<-sd(residuals5))
+sds <- c(sd(data$signal),sd1,sd2,sd3,sd4,sd5)
+# plot standard deviation of each iteration
+plot(sds, type="b")
+```
+We can see that the standard deviation of the residuals did not improve, so we can stop the process. Note that the standard deviation of the remaining noise is lower than the sd of the original simulated noise sigmaEps
+
+Overall, we demonstrated that sequential simple learners can be used to drastically improve prediction, shown by decreasing the standard deviation of the residuals.
 
 # 3. Regression
 
 ## 3.1 Example predicting Baseball Players salaries
 
-randomForest()
-importance=True makes it heavy, false makes it faster
+Use the Hitters data from the ISLR library for a simple example
+
+```{r}
+library(ISLR)
+library(knitr)
+```
+
+Remove missing entries and takelogs
+
+```{r}
+# grab the data
+data(Hitters)
+# check the size   322 x 20
+dim(Hitters)
+# Remove incomplete cases
+Hitters <- na.omit(Hitters)
+# check how many rows removed, now 263 x 20
+dim(Hitters)
+
+# Log transform Salary to make it a bit more normally distributed
+Hitters$Salary <- log(Hitters$Salary)
+kable(head(Hitters,3))
+```
+
+### 3.1.1 Random forest
+
+Random forest method is implermented in R package randomForest()
+Description: randomForest implement's Breiman'srandom forest algo (based on original fortran code) for classification and regression. It can also be used in unsupervised mode for assessing proximities among datapoints.
+```{r}
+library(randomForest)
+```
+
+#### 3.1.1.1 Default arguments
+
+Set seed for reproducibility and grow a forest
+Variable importance=True makes it heavy, false makes it faster
+```{r}
+set.seed(0)
+rfSalary <- randomForest(Salary~., ntree=500, data=Hitters, importance=TRUE)
+print(rfSalary)
+```
+
+The MSE is computed on the basis of out of bag sample
+% var explained is 100(1-(MSEoob/sigma^2)) 
+
+The package has extractor function importance() for variable importance measures as produced by randomForest.
+
+Here are the definitions of the variable importance measures:
+
+The first measure is computed from permuting OOB data: For each tree, the prediction error on the out-of-bag portion of the data is recorded (error rate for classification, MSE for regression).
+Then the same is done after permuting each predictor variable.
+The difference between the two are then averaged over all trees, and normalized by the standard deviation of the differences.
+Intuition behind the measure: if predictor is not important, permuting its values will not make prediction power worse.
+If the standard deviation of the differences is equal to 0 for a variable, the division is not done (but the average is almost always equal to 0 in that case).
+
+The second measure is the total decrease in node impurities from splitting on the variable, averaged over all trees.
+For classification, the node impurity is measured by the Gini index.
+For regression, it is measured by residual sum of squares.
+
+```{r}
+importance(rfSalary)
+```
+We can also sort variables according to its importnaces and plot them
+```{r}
+varImpPlot(rfSalary, main="Variable Importance")
+plot(rfSalary)
+```
+This shows that we may significantly reduce the number of trees without losing accuracy
+
+#3.1.1.2 Reduced number of trees
+
+```{r}
+set.seed(0)
+rfSalary200 <- randomForest(Salary~., ntree=200, data=Hitters, importance=T)
+print(rfSalary200)
+```
+Compare the 2 models
+```{r}
+rbind(T200=c(mse=tail(rfSalary200$mse,1),rsq=tail(rfSalary200$rsq,1)),
+         T500=c(mse=tail(rfSalary$mse,1),rsq=tail(rfSalary$rsq,1)))
+```
+Did the relative importance change
+```{r}
+cbind(T200=row.names(rfSalary200$importance),T500=row.names(rfSalary$importance))
+```
+
+#### 3.1.1.3 Variation of number of variables in split
 
 
-Variable importance
+
+
+
+
+
+
+
+
+
 
 
 
