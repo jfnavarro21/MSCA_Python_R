@@ -1,0 +1,210 @@
+f---
+title: "Workshop1 week7"
+author: "John Navarro"
+date: "August 4, 2017"
+output: pdf_document
+---
+# 1. Review of bagging, random forests, and boosting
+
+## 1.1 Bagging
+
+Looking to improve decision tree performance by combining results of several trees build on randomly generated training subsets with replacement. Bagging is short for Bootstrap Aggregating
+
+### Uses:
+Can be used for classification or regression.
+
+### Method:
+Each learning sample generates a predictor tree, in the case of regression, simple averaging gives the aggregated predictor. For classification problems, we use majority voting
+
+### Benefits:
+This bootstrapping procedure leads to better model performance because it decreases the variance of the model, without increasing the bias
+This means that while the predictions of a single tree are highly sensitive to noise in its training set, the average of many trees is not, as long as the trees are not correlated
+
+### Problems:
+But, if one or a few features happen to be very strong predictors for the response variable, these features will be selected in many of the trees. Causing the trees to become correlated. Random forest method can over come this disadvantage
+
+## 1.2 Random Forests
+### Uses:
+Can also handle both regression and classification tasks. It also can be used as dimensionality reduction method. 
+
+
+### Method:
+As in bagging, a number of decision trees is built on bootstrapped learning samples.
+But when building these trees, EACH time a split in a tree is considered, a random sample of m predictors is chosen as split candidates from the full set of predictors. The split is allowed to use only one of those m predictors.
+Steps
+  1. Bootstraped sample of observations(rows) is generated from set L by sampling uniformly and with replacement. This sample will be the training set for the tree
+  2. If there are M input variables, at EACH node a subset m variables are selected out of M
+  The best split on these m are used to split the node, the value of m is held constant
+  3. Algo builds N trees, each is grown fully with no pruning
+  4. Predict new data by aggregating the predictions of N trees. majority for classification, average for regression
+
+Suggested m values
+m is sqrtM for classification
+m is M/3 for regression
+
+
+### Benefits:
+Random forests can deal with missing values ( if you use randomForestSRC), outlier values
+RFs provide an improvement over bagged trees by decorrelating trees when the impose constraints on predictors.
+RF can handle large data set with higher dimensionality. It can handle thousands of input variables and identify most significant variables so it is considered one of the dimensionality reduction methods. The model outputs the importance of variables
+
+It has an effective method for estimating missing data and maintains accuracy when a large proportion of the data are missing. It has methods for balancing errors in data sets where classes are imbalanced.
+Random Forest involves sampling of the input data with replacement. Here around one third of the data are not used for training and can be used for testing.
+These observations are called out-of-bag (OOB) samples.
+Errors estimated on these OOB samples are known as OOB errors. The resulting OOB errors are valid estimates of the test error for the bagged model, since the response for each observation is predicted using only the trees that were not fit using that observation.
+An OOB error estimate is close to that obtained by 3-fold crossvalidation. Hence unlike many other nonlinear estimators, random forests can be fit in one sequence, with cross-validation being performed along the way.
+
+### Problems:
+Random Forest is better at classification but not as good for regression problems since it does not give continuous output.
+
+It looks like a black box approach to statistical modelers - you have very little control on what the model does.
+You can at best - try different parameters and random seeds.
+
+## 1.3 Boosting
+
+Boosting refers to a family of algos which converts group of weak learners to a strong learner. Boosting was originally designed for classification problems, but it was later extended to regression. Like bagging, boosting is a general approach that can be applied to many statistical learning methods for regression or classification
+
+### 1.3.1 Gradient Boosting Trees
+
+In each step of Boosting procedure, the tree is fitted to the residuals of the previous step. One may note that residual is the negative derivative of the square loss function. 
+So boosting can be considered as a gradient desceent algorithm.
+
+
+
+
+# 2 simple Example w Clustering
+
+Simulate the data, add noise to the sine wave
+```{r}
+set.seed(1180)
+x<-seq(0,2*pi,by=.01)
+sigmaEps<-.1
+eps<-rnorm(length(x),0,sigmaEps)
+signal<-sin(x)+eps
+data<-data.frame(x=x,signal=signal)
+head(data)
+```
+
+```{r}
+myPlot<-function(myDataFrame){
+  lastCol<-ncol(myDataFrame)
+  matplot(myDataFrame$x,myDataFrame[,c(2,lastCol)],pch=16,xlab="X",ylab="Data and Predictor")
+}
+myPlot(data)
+
+```
+As a simple learner, use cluster analysis to separate into 2 clusters
+```{r}
+library(mclust)
+```
+```{r}
+model <- Mclust(data$signal,G=2)
+summary(model)
+
+plot(model, what="classification")
+head(model$classification)
+
+# Clustering identified two groupw with post and neg mean values and the same std deviations
+# Create the first learner fitted values and add the column of them to the data frame
+data$learner1<-model$parameters$mean[model$classification]
+# check that learner column predictions
+head(data)
+
+# plot the data with the predictions
+myPlot(data)
+
+# assign errors to residuals1
+residuals1<-data$signal-data$learner1
+
+# Plot the residuals
+plot(x,residuals1)
+
+# stand deviation of residuals
+(sd1 <- sd(residuals1))
+
+# standard deviation of signal data compared to sd of residuals
+c(sd(data$signal),sd1)
+```
+There is a remaining pattern in the residuals, but we observe a significant reduction in standard deviation relative to the original data.
+In order to repeat the steps of gradient boosting several more times create a function simpleLearner<-function(mySignal) which takes a signal vector and splits it into 2 groups using Mclust(), returning vector of the next learner predicted values.
+
+```{r}
+
+simpleLearner <- function(mySignal){
+  # separate the input vector into 2 groups using Mclust
+  model <- Mclust(mySignal, G=2)
+  # calculate the residuals by subtracting the predictions from the original data
+  residuals <- model$parameters$mean[model$classification]
+  # return the new residuals
+  return(residuals)
+}
+residuals2 <- simpleLearner(residuals1)
+ head(residuals2) 
+ 
+ 
+ data$learner12<-data$learner1+simpleLearner(residuals1)
+myPlot(data)
+
+```
+```{r}
+residuals2<-data$signal-data$learner12
+plot(residuals2)
+```
+
+
+# 3. Regression
+
+## 3.1 Example predicting Baseball Players salaries
+
+randomForest()
+importance=True makes it heavy, false makes it faster
+
+
+Variable importance
+
+
+
+### 3.1.2 Gradient Boosting
+
+```{r}
+suppressWarnings(library(ISLR))
+suppressWarnings(library(knitr))
+library(xgboost)
+data(Hitters)
+matrHitters = data.matrix(Hitters)[,-which(names(Hitters) == "Salary")]
+target = Hitters$Salary
+```
+
+```{r}
+params <- list("objective" = "reg:linear")
+set.seed(0)
+cvSalary = xgb.cv(params=params, data = matrHitters, label = target,
+                nfold = 3, nrounds = 50,prediction=T,verbose=F)
+names(cvSalary)
+```
+```{r}
+# Fitting function for iterations
+xgbCV <- function (Inputs) {  # one combination of parameters
+  myEta<-Inputs$eta # extract eta, max depth and nrounds from Inputs
+  myMax_depth<-Inputs$max_depth
+  myNRounds<-Inputs$n_Rounds
+  set.seed(0)
+  fit <- xgb.cv(   # fit xgb.cv
+    params =list(eta=myEta,max_depth=myMax_depth), # first 2 parameters of 3  
+    data = matrHitters,  
+    metrics=eval_metric, # rmse
+    objective = "reg:linear", # regressions
+    label = target, # respones
+    nfold = folds, # 3 folds
+    nrounds = myNRounds, # from params, max # of rounds, 30 to 90 by 10 and 26
+    verbose=F # controls output
+  )
+  mybestNR = which.min(fit$evaluation_log$test_rmse_mean) # select best NR from outputs
+  val <- fit$evaluation_log$test_rmse_mean[mybestNR] # creating evaluation level, selecting column #3
+  res <<- rbind(res,c(val,myEta,myMax_depth,mybestNR)) # double aarow, if specify a dataframe outside of function, to assign values to a dataframe that exists outside the function. 
+
+  return(val) # is MSE for best # of iterations
+}
+```
+
+
