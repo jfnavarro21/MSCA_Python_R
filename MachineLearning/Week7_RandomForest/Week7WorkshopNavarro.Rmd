@@ -292,60 +292,643 @@ cbind(T200=row.names(rfSalary200$importance),T500=row.names(rfSalary$importance)
 
 #### 3.1.1.3 Variation of number of variables in split
 
+Argument mtry: Number of variables randomly sampled as candidates at each split. Note that
+the default values are different for classification (sqrt(p) where p is number of
+variables in x) and regression (p/3)
 
+```{r}
+# set a vector assigning values for mtry, from 1 to 19
+mtryVec <- 1:19
 
+# set seed for reproducibility
+set.seed(0)
 
+# extract the mse and rsq for each iteration of Random Forest with different mtry values
+mtryQuality <- t(sapply(mtryVec, 
+                        function(z) c(mse=tail(randomForest(Salary~.,
+                                                            ntree=200,
+                                                            data=Hitters,
+                                                            importance=T,
+                                                            mtry=z)$mse,1),
+                                      rsq=tail(randomForest(Salary~.,
+                                                            ntree=200,
+                                                            data=Hitters,
+                                                            importance=T,
+                                                            mtry=z)$rsq,1)
+                                      )
+                        )
+                 )
 
+# return the head of mse and rsq for each value of mtry
+head(mtryQuality)
 
+```
+Plot the MSE and Rsquaredas the number of variables randomly sampled as candidates at each split
 
+```{r}
+par(mfrow = c(2,1))
+plot(mtryQuality[,1], type="b")
+plot(mtryQuality[,2], type="b")
+```
 
+Plotting the curves for different numbers of variables at each split suggests to use parameter mtry equal to 5. 
+Predicting and calculating RMSE for the random forest model
 
-
-
-
-
+```{r}
+# set seed
+set.seed(0)
+# Run random forest with 6 variable candidates at each split
+rfSalary200 <- randomForest(Salary~., ntree=200, data=Hitters, importance=F, mtry=6)
+# print the model
+print(rfSalary200)
+# return the mean squared error 
+mean((Hitters$Salary-predict(rfSalary200))^2)
+```
 
 ### 3.1.2 Gradient Boosting
 
-```{r}
-suppressWarnings(library(ISLR))
-suppressWarnings(library(knitr))
-library(xgboost)
-data(Hitters)
-matrHitters = data.matrix(Hitters)[,-which(names(Hitters) == "Salary")]
-target = Hitters$Salary
-```
+Analyze the same data using gradient boosting.
+
+The method is implemented in xgboost.XGBoost is short for "Extreme Gradient Boosting".
+It has several nice properties:
+  - Speed: it can automatically do parallel computation on Windows and Linux, with OpenMP.
+    It is generally over 10 times faster than the classical gbm.
+  - Input Type: it takes several types of input data:
+      - Dense Matrix: R's dense matrix, ie matrix
+      - Sparse Matrix: R's sparse matrix, ie Matrix::dgCMatrix
+      - Data File: local data files;
+      - xgb.DMatrix: its own class(recommended)
+  - Sparsity: it accepts sparse input for both tree booster and linear booster, and is            optimized for sparse input
+  - Customization: it supports customized objective functions and evaluation functions
 
 ```{r}
+# install the package
+library(xgboost)
+
+# Set the objective parameter
 params <- list("objective" = "reg:linear")
+```
+
+xgboost has a large number of parameters, some of them are on the list in params.
+Commonly used ones are
+  - objective: objective function, typically:
+      - reg:linear - for linear regression
+      - binary:logistic - logistic regression for classifications
+  - eta: step size of each boosting step
+  - max.depth: maximum depth of the tree
+  - nthread: number of threads used in training, if not set, all threads are used
+  
+xgboost only works with numeric data, while Hitters has several categorical columns. Convert them to integer and run cross validation
+
+```{r}
+# converts all the variables to numeric mode, then binds them as columns of a matrix, except Salary
+matrHitters = data.matrix(Hitters)[,-which(names(Hitters) == "Salary")]
+# assign salary as the target variable
+target = Hitters$Salary
+```
+Run xgb.cv() to find the best number of iterations
+```{r}
+# set seed for reproducibility
 set.seed(0)
+# run xgb.cv
 cvSalary = xgb.cv(params=params, data = matrHitters, label = target,
                 nfold = 3, nrounds = 50,prediction=T,verbose=F)
+# returns the names of the model
 names(cvSalary)
 ```
 ```{r}
+# display the rmse and sd of the train/test
+(cvSalary.table <- cvSalary$evaluation_log)
+# return the # of iterations given lowest RMSE
+(bestNR=which.min(cvSalary.table$test_rmse_mean))
+# plot RMSE at each iterations
+plot(cvSalary.table$test_rmse_mean, ylim=c(0.4, 0.6))
+# return the best rmse
+cvSalary.table$test_rmse_mean[bestNR]
+```
+Note effect of overfitting in the RMSE table, optimal # of iterations minimizes the RMSE
+
+Cross validation shows that we should use the number of iterations 26 and that MSE test error equals. Equivalently, RMSE equals
+
+Train the model using bestNR and calculate its RMSE using entire sample
+
+```{r}
+modelSalary <- xgboost(data=matrHitters, label=target, params=params, nrounds=bestNR, verbose=FALSE)
+names(modelSalary)
+# calculate RMSE
+mean((target-predict(modelSalary, newdata=matrHitters))^2)
+```
+this mean squared error still is too small in comparison with the order of magnitude of test RMSE
+
+#### 3.1.2.1 Tuning parameters
+
+Prepare the grid of parameters
+```{r}
+#xgboost task parameters
+folds <- 3
+# evaluation metric for validation
+eval_metric= list("rmse")
+
+# Parameters grid to search
+eta=c(.3,.15,0.05)
+max_depth=c(4,5,6)
+nrounds <- c(seq(from=30, to=90, by=10),26)
+
+# Table to track performance from each worker node
+res <- data.frame(Value=numeric(), Eta=numeric(), Max_Depth=numeric(), Nrounds=numeric())
+```
+make fitting function
+
+```{r}
 # Fitting function for iterations
-xgbCV <- function (Inputs) {  # one combination of parameters
-  myEta<-Inputs$eta # extract eta, max depth and nrounds from Inputs
+xgbCV <- function (Inputs) {  
+  # one combination of parameters
+  # extract eta, max depth and nrounds from Inputs
+  myEta<-Inputs$eta 
   myMax_depth<-Inputs$max_depth
   myNRounds<-Inputs$n_Rounds
   set.seed(0)
-  fit <- xgb.cv(   # fit xgb.cv
-    params =list(eta=myEta,max_depth=myMax_depth), # first 2 parameters of 3  
-    data = matrHitters,  
-    metrics=eval_metric, # rmse
-    objective = "reg:linear", # regressions
-    label = target, # respones
-    nfold = folds, # 3 folds
-    nrounds = myNRounds, # from params, max # of rounds, 30 to 90 by 10 and 26
-    verbose=F # controls output
+  # fit xgb.cv
+  fit <- xgb.cv( 
+    # first 2 parameters of 3
+    params =list(eta=myEta,max_depth=myMax_depth),   
+    data = matrHitters,
+    # "rmse"
+    metrics=eval_metric, 
+    # regressions
+    objective = "reg:linear", 
+    # respones
+    label = target, 
+    # 3 folds
+    nfold = folds, 
+    # from params, max # of rounds, 30 to 90 by 10 and 26
+    nrounds = myNRounds, 
+    # controls output
+    verbose=FALSE 
   )
-  mybestNR = which.min(fit$evaluation_log$test_rmse_mean) # select best NR from outputs
-  val <- fit$evaluation_log$test_rmse_mean[mybestNR] # creating evaluation level, selecting column #3
-  res <<- rbind(res,c(val,myEta,myMax_depth,mybestNR)) # double aarow, if specify a dataframe outside of function, to assign values to a dataframe that exists outside the function. 
+  # select best NR from the table of rmse/sd
+  mybestNR = which.min(fit$evaluation_log$test_rmse_mean) 
+  # creating evaluation level, selecting column #3
+  val <- fit$evaluation_log$test_rmse_mean[mybestNR] 
+  # double aarow, if specify a dataframe outside of function, to assign values to a dataframe
+  # that exists outside the function.
+  res <<- rbind(res,c(val,myEta,myMax_depth,mybestNR))  
 
   return(val) # is MSE for best # of iterations
 }
 ```
+Run search on grid
+```{r}
+library(NMOF)
+```
+```{r}
+sol <- gridSearch(
+  fun=xgbCV,
+  levels=list(eta=eta, max_depth=max_depth, n_Rounds=nrounds),
+  method="loop",
+  keepNames = T,
+  asList=T
+)
+```
+showing optimal set of parameters
+```{r}
+sol$minlevels
+```
+training the model with optimal parameters
+
+```{r}
+# Train model given tuned parameters
+params <- sol$minlevels[1:2]
+set.seed(0)
+xgbSalary.tuned <- xgboost(data=matrHitters,
+                           label=target,
+                           objective="reg:linear",
+                           params=params,
+                           nrounds=sol$minlevels$n_Rounds,
+                           verbose=FALSE)
+c(Default=mean((target-predict(modelSalary, newdata = matrHitters))^2),
+  Tuned=mean((target-predict(xgbSalary.tuned, newdata=matrHitters))^2))
+```
+This does not seem like improvement. Trying parameters manually
+
+Increasing tree depth to 6.
+
+```{r}
+params <- list(eta=.15, max_depth=6)
+xgbSalary.tuned <- xgboost(data=matrHitters,
+                           label=target,
+                           objective="reg:linear",
+                           params=params,
+                           nrounds=sol$minlevels$n_Rounds,
+                           verbose=FALSE)
+c(Default=mean((target-predict(modelSalary, newdata = matrHitters))^2),
+  Tuned=mean((target-predict(xgbSalary.tuned,newdata = matrHitters))^2))
+```
+Increasing eta to the default value of 0.3
+```{r}
+params <- list(eta=0.3, max_depth=6)
+xgbSalary.tuned <- xgboost(data=matrHitters,
+                           label=target,
+                           objective="reg:linear",
+                           params=params,
+                           nrounds=sol$minlevels$n_Rounds,
+                           verbose=FALSE)
+c(Default=mean((target-predict(modelSalary, newdata=matrHitters))^2),
+  Tuned=mean((target-predict(xgbSalary.tuned, newdata=matrHitters))^2))
+```
+
+## 3.2 Example:Large Number of Predictors
+
+Consider the example analyzed in the workshop Linear Regression with Large Number of Predictors. Simulate data
+```{r}
+N=500
+set.seed(0)
+Epsilon <- rnorm(N,0,1)
+X <- rnorm(N*N, 0,2)
+dim(X) <- c(N,N)
+colnames <- paste0("X",1:N)
+slopesSet <- runif(N,1,3)
+Y <- sapply(2:N, function(z) 1+X[,1:z]%*%slopesSet[1:z] + Epsilon)
+head(X[,1:5])
+``` 
+```{r}
+m=440
+completeModelDataFrame <- data.frame(Y=Y[,m-1],X[,1:m])
+dim(completeModelDataFrame) #500x441
+```
+
+### 3.2.1 Random forest
+
+```{r}
+set.seed(0)
+rfManyReg <- randomForest(Y~., data=completeModelDataFrame)
+print(rfManyReg)
+```
+
+```{r}
+plot(rfManyReg)
+```
+It is little bit better than regression tree(see previous lecture) but far behindthe linear model that gave us MSE 52.07
+```{r}
+which.min(rfManyReg$mse)
+which.min(rfManyReg$mse[1:100])
+
+```
+
+```{r}
+set.seed(0)
+rfManyReg <- randomForest(Y~., data=completeModelDataFrame, ntree=which.min(rfManyReg$mse[1:100]))
+print(rfManyReg)
+```
+
+#### 3.2.1.1 Importance of predictors
+
+```{r}
+# plot the variables by importance
+varImpPlot(rfManyReg, main="Variable Importance")
+# plot the rank of the importance of variables for each slope
+plot(rank(slopesSet[1:m]),rank(importance(rfManyReg)))
+# view the head of the data
+head(cbind(rank(slopesSet[1:m]), rank(importance(rfManyReg))))
+
+```
+
+Recall that all parameters are simulated as significant and all predictors are independent by construction. The larget the coefficient, the more significant should be the predictor.
+Random tree may not be assigning importance correctly in this case
+
+### 3.2.2 Gradient boosting
+
+```{r}
+params <- list("objective"="reg:linear")
+set.seed(0)
+gbManyReg=xgb.cv(params=params, data=data.matrix(completeModelDataFrame[,-1]),
+                 label=completeModelDataFrame[,1],
+                 nfold=5, nrounds=100, verbose=FALSE)
+(bestNR=which.min(gbManyReg$test.rmse.mean))
+
+gbManyReg$test.rmse.mean[bestNR]^2
+```
+We see that even advanced tree models can not treat complicated linear model when linear model is able to fit the data
+
+GENERAL CONCLUSION
+Linear model may not be the best choice in all cases, but if it works, it works better than other models. Same is true in general about any parametric model in comparison w non parametric approaches
+
+# 4. Classification
+
+## 4.1 Otto Product Classification Example
+
+In this example we use data set provided by Otto group for a 2015 Kaggle competition
+
+The Otto Group needed categorizing about 200k unspecified products inot 9 classes based on 93 unspecified features. For simplicity we reduced the number of visitors and the number of classes
+```{r}
+# load libraries
+library(fBasics)
+# load data set
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/MachineLearning/Week7_RandomForest"
+Data = read.csv(paste(datapath,'DTTrain.csv',sep='/'),header=TRUE)
+dim(Data) # 10233 X 95
+# look at the first 5 columsn of data
+kable(head(Data[,1:5],3))
+# last columns of data
+kable(Data[1:3, (ncol(Data)-4):ncol(Data)])
+```
+```{r}
+# Split the data into train(2/3) and test (1/3) sets
+set.seed(13)
+# create a vector that is a sample of 1/3 of the data
+TestInd=sample(nrow(Data), nrow(Data)/3)
+# training inputs are 2/3 of data, without the time row
+xTrain= Data[-testInd, -1]
+# test data inputs are 1/3 of the data from the rnadom sample, without the time row
+xTest=Data[testInd,-1]
+# y train is the target column of data, subsetted 2/3
+yTrain=as.factor(Data$target[-testInd])
+# y test is the 1/3 of the target column
+yTest=Data$target[testInd]
+
+```
+
+# 4.1.1 Random Forest
+
+Fit Random forest to the train data and make prediction on the test data
+
+```{r}
+rfOtto <- randomForest(target~., data=xTrain, ntree=100)
+rfPred <- predict(rfOtto, newdata=xTest, type="prob")
+head(rfPred)
+```
+Use multiclass logloss for estimating prediction quality
+Calculate it for random forest
+```{r}
+library(dummies)
+```
+Create matrix of true values indicators using function dummy.data.frame from library dummies
+```{r}
+rf_target_IndMat<-dummy.data.frame(data=as.data.frame(yTest), 
+                                     sep="_", verbose=F, 
+                                     dummy.class="ALL")
+rf_target_IndMat[1:10,]
+dim(rf_target_IndMat)
+(rfLogLoss = MultiLogLoss(rf_target_IndMat,rfPred))
+rfLogLoss <-0.3973357 
+```
+### 4.1.2 Gradient boosting
+
+Function xgboost() accepts numeric matrices(not data frames as input data and class labels should be integers starting from zero. So we need some conversion)
+
+```{r}
+xgbTrain <- data.matrix(xTrain[,-ncol(xTrain)])
+xgbTest <- data.matrix(xTest[, -ncol(xTest)])
+yTrain <- as.integer(yTrain)-1
+yTest <- as.integer(yTest)-1
+table(yTrain)
+dim(xgbTrain) #6822  x 93
+xgbTrain[1:5,1:5]
+length(yTrain)
+```
+
+```{r}
+# set number of classes to 5
+numClasses = max(yTrain) +1
+# set parameters
+param <- list("objective"="multi:softprob", 
+              "eval_metric" = "mlogloss",
+              "num_class"= numClasses)
+```
+
+The choice of objective = mulit softprob represents generalization of logistic link into multiple classes and returns a matrix of class probabilites as opposed to objective= multi softmax which returns the class of maximum probability.
+
+Sometimes it is important to use cross-validation to examine the model, for example in order to find optimal number of iterations.
+
+In library xgboost this is done by function xgb.cv()
+
+Fit boosting model
+
+```{r}
+cv.nround=10
+cv.nfold=3
+set.seed(1)
+(bst.cv=xgb.cv(param=param, data=xgbTrain, label=yTrain, 
+               nfold=cv.nfold, nrounds=cv.nround, verbose = FALSE))
+```
+Since xerror continues decreasing in the process of cross validation, we know that the model is not over-fitting. But this also may mean that the fit can be better. Make prediction with this number of rounds
+```{r}
+# run xgboost with 10 rounds
+bst = xgboost(param=param, data = xgbTrain, label = yTrain, 
+              nrounds=cv.nround,verbose=FALSE)
+# use bst model to predict on test set
+xgbPred <- matrix(predict(bst, xgbTest), ncol = numClasses, byrow = TRUE)
+# return head of predictions
+head(xgbPred)
+```
+
+Compare prediction quality of random forest and gradient boosting
+```{r}
+gb_target_IndMat <- dummy.data.frame(data=as.data.frame(yTest),
+                                     sep="_", verbose=FALSE,
+                                     dumm.class="ALL")
+print(list(RF=rfLogLoss, XGB=MultiLogLoss(gb_target_IndMat, xgbPred)))
+print(list(RF=rfLogLoss, XGB=0.3182422))
+```
+
+## 4.2 Identification of Spoken Letters (ISOLET) Example
+
+Data for this example are from UCI repository: Lichman, M. (2013), UCI Machine Learning Repository. Irvine, CA: University of California, School of Information and Computer Science
+The data set is ISOLET (Isolated Letter Speech Recognition).
+
+Data Set Information:
+
+This data set was generated as follows. 150 subjects spoke the name of each letter of the alphabet twice. Hence, we have 52 training examples from each speaker.
+The data contain different characteristics of the sounds, for example characteristics of waveforms.
+The features include spectral coefficients; contour features, sonorant features, pre-sonorant features, and post-sonorant features.
+Exact order of appearance of the features is not known.
+
+The speakers are grouped into sets of 30 speakers each, and are referred to as isolet1, isolet2, isolet3, isolet4, and isolet5.
+The data appear in "isolet1+2+3+4.data" in sequential order: first the speakers from isolet1, then isolet2, and so on.
+The test set, "isolet5", is a separate file.
+
+The total number of observations in ISOLET should be 150×26×2=7800150×26×2=7800. Of them 6238 are in the training set and 1559 are in the test set. Three observations are missing for some reason.
+
+```{r}
+# install libraries
+library("ggplot2")
+library('gbm')
+```
+
+
+```{r}
+# Read in the data
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/MachineLearning/Week7_RandomForest/"
+
+# Read in the training set
+dTrain = read.table(paste0(datapath,"isolet1234.data"),
+              header=FALSE,sep=',',
+              stringsAsFactors=FALSE,blank.lines.skip=TRUE)
+
+# create a column called "is Test"
+dTrain$isTest <- FALSE
+
+# read in the test set
+dTest = read.table(paste0(datapath,"isolet5.data"),
+              header=FALSE,sep=',',
+              stringsAsFactors=FALSE,blank.lines.skip=TRUE)
+
+# create a column called "is Test"
+dTest$isTest <- TRUE
+
+# combine the sets
+d <- rbind(dTrain,dTest)
+dim(d) # 7797 x 619
+
+# return 5 rows, 10 columns of d
+d[1:5, 1:10]
+
+# return 5 rows of last 10 columns of d
+d[1:5, 610:619]
+
+# remove objects
+rm(list=c('dTest','dTrain'))
+```
+Make column 618 letters instead of letter numbers
+Select only rows with letters m and n
+Turn the column into a logical variable where n=  True
+
+```{r}
+# convert numbers to letters
+d$V618 <- letters[d$V618]
+
+# store all column names in a vector for building the formula
+vars <- colnames(d)[1:617]
+
+# return the head of vars
+head(vars)
+
+yColumn <- 'isLetter'
+
+
+d <- d[d$V618 %in% c('m','n'),,drop=FALSE]
+dim(d)
+d[,yColumn] <- d[,'V618']=='n'
+head(d[,yColumn])
+```
+
+Run gradient boosting algorithm using gbm() 
+
+```{r}
+# First create formula variable for future use
+formula <- paste(yColumn, paste(vars, collapse = ' + '), sep= ' ~ ')
+```
+2 ways to call the function
+
+gbm and gbm.fit
+
+gbm.fit is faster
+Parameter n.trees tells how many trees to fit in the algorithm.
+Parameter cv.folds is the number of folds in cross validation.
+Parameter interaction.depth tells how many splits each learner tree will have.
+Let KK be the interaction.depth, then the number of nodes NN and leaves LL (i.e terminal nodes) are respectively given by: N=2K+1???1, L=2KN=2K+1???1, L=2K So, for K=1K=1 there will be 3 nodes total, 2 of them will be leaves.
+Parameter shrinkage sets the rate of learning by each learner. The smaller the shrinkage rate - the slower the algorithm learns which means better quality, but longer time.
+Try to experiment with shrinkage.
+
+The second call is commented out.
+Run gbm() using the first call.
+```{r}
+# do the GBM modeling
+#help(gbm)
+# modelGBM <- gbm.fit(x=d[!d$isTest,vars,drop=FALSE],
+#                     y=d[!d$isTest,yColumn],
+#          distribution='bernoulli',
+#          n.trees=400,
+#          interaction.depth=3,
+#          shrinkage=0.05,
+#          bag.fraction=0.5,
+#          keep.data=FALSE)
+startTime=proc.time()
+modelGBM <- suppressWarnings(
+  gbm(as.formula(formula),
+      data=d[!d$isTest,,drop=FALSE],
+      distribution='bernoulli',
+      n.trees=400,
+      interaction.depth=3,
+      shrinkage=0.05,
+      bag.fraction=0.5,
+      keep.data=T,
+      cv.folds=5,
+      verbose=F))
+stopTime = proc.time()
+(timeElapsed<-stopTime-startTime)
+```
+The object returned is of class gbm
+```{r}
+modelGBM
+class(modelGBM)
+names(modelGBM)
+head(modelGBM$fit)
+modelGBM$trees[1:2]
+```
+Variable modelGBM$trees returns long list of all generated trees. Only the first 2 trees are shown here.
+It is more informative to look at individual trees using pretty.gbm.tree().
+```{r}
+pretty.gbm.tree(modelGBM,1)
+pretty.gbm.tree(modelGBM,2)
+```
+
+pretty.gbm.tree returns a data frame.
+Each row corresponds to a node in the tree.
+Columns indicate:
+
+  -SplitVar: index of which variable is used to split. -1 indicates a terminal node
+  -SplitCodePred: if the split variable is continuous then this component is the split point.      If the split variable is categorical then this component contains the index of       object$c.split that describes the categorical split.
+  If the node is a terminal node then this is the prediction
+  -LeftNode the index of the row corresponding to the left node. 
+  -RightNode the index of the row corresponding to the right node 
+  -ErrorReduction the reduction in the loss function as a result of splitting this node.      
+  -Weight the total weight of observations in the node. If weights are all equal to 1 then this is the number of observations in the node
+
+A very useful function is gbm.perf().
+It shows what number of trees would be sufficient to generate without taking risk of over-fitting.
+The two curves are train error (black) and validation error.
+While train error continues to decline the validation error stabilizes.
+
+```{r}
+nTrees <- gbm.perf(modelGBM)
+print(nTrees)
+```
+Probably, the most useful methods of all (as usual) is the summary.
+Function summary() shows relative importance of variables.
+Add vector of cumulative sums of importance index, plot cumulative sums, see which variables were most important.
+
+```{r}
+(relImport<-summary(modelGBM))
+relImport$cumSum<-cumsum(summary(modelGBM)$rel.inf)
+plot(relImport$cumSum)
+head(relImport,50)
+```
+Method predict() returns probabilities of classes.
+
+```{r}
+d$modelGBM <- predict(modelGBM,newdata=d,type='response',
+                      n.trees=nTrees)
+head(predict(modelGBM))
+
+showPred<-cbind(Response=d$isLetter*1,Predict=d$modelGBM)
+showPred[order(d$isLetter*1),][1:10,]
+# Plot 
+matplot(1:length(showPred[,1]),showPred[order(d$isLetter*1),],pch=1,ylab="Probability",xlab="Index")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
