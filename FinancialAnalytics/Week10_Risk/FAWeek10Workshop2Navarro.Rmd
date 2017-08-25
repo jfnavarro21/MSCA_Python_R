@@ -1,0 +1,435 @@
+MScA, Financial Analysis (32001)
+Week 10: Workshop 2
+Pattern Recognition in Interest Rates Data
+43 My factor 2 is reversed, that ok?
+
+200 what is Factors2013. my factor plots are not mirror images of each other.
+# 1. Data
+
+Read the data used for Statstical Analysis course project.
+```{r}
+datapath <- "C:/Users/JohntheGreat/Documents/MSCA/FinancialAnalytics/Week10_Risk"
+dat<-read.csv(file=paste(datapath,"RegressionAssignmentData2014.csv",sep="/"),
+           row.names=1,header=TRUE,sep=",")
+dat<-data.matrix(dat[,1:7],rownames.force="automatic")
+```
+The period starts in January 1981 and ends in June 2014.
+```{r}
+head(dat)
+tail(dat)
+dim(dat) # 8300 x 7
+```
+
+# 2 Scenarios of curve moves based on current history
+
+Create factors and loadings
+```{r}
+# create vector of maturities corresponding with duration of treasury products
+Maturities<-c(.25,.5,2,3,5,10,30)
+# Run PCA model on yield levels
+PCA.Yields <- princomp(dat)
+# extract the factor loadings
+Loadings <- PCA.Yields$loadings[,1:3]
+# extract the factor scores
+Factors <- PCA.Yields$scores[,1:3]
+# extract the zero loadings
+Loading0 <- PCA.Yields$center
+dim(Loadings) # 7 x 3
+dim(Factors) # 8300 x 3
+length(Loading0)# 7
+```
+Plot loadings for first 3 components
+```{r}
+matplot(Maturities, Loadings, type="l",lty=1)
+```
+Create 30-day changes of factor scores 1 and 2
+```{r}
+factors30daysChanges <- apply(Factors[,1:2],2,diff,lag=30)
+```
+Create confidence ellipses for the first 500 and last 100 days of the data period
+```{r}
+suppressWarnings(library(car))
+```
+Plot the dat with the ellipses representing the .864 and .99 levels
+```{r}
+dataEllipse(head(factors30daysChanges[,1],500),
+            head(factors30daysChanges[,2],500),
+            levels=c(.99,.86466),ylim=c(-5,5), xlim=c(-10,10))
+```
+consider only last 100 points
+```{r}
+dataEllipse(tail(factors30daysChanges[,1],100),
+            tail(factors30daysChanges[,2],100),
+            levels=c(.99,.86466),ylim=c(-.5,.5),xlim=c(-.6,.6))
+```
+Rotate factors to the main axes ofthe ellipses
+```{r}
+# covariance matrix
+Cmatr <- eigen(cov(tail(factors30daysChanges, 100)))$vectors
+hFactors<-tail(factors30daysChanges,100)%*%Cmatr
+hLoadings<-Loadings[,1:2]%*%t(Cmatr)
+matplot(Maturities,hLoadings,type="l")
+abline(h=0)
+```
+```{r}
+recentEllipses<-dataEllipse(hFactors[,1],hFactors[,2],
+                            levels=c(.99,.86466),ylim=c(-.2,.2),xlim=c(-.7,.6))
+```
+create 4 scenarios on the ellipse
+```{r}
+W<-recentEllipses$`0.99`[which.min(recentEllipses$`0.99`[,1]),]
+E<-recentEllipses$`0.99`[which.max(recentEllipses$`0.99`[,1]),]
+S<-recentEllipses$`0.99`[which.min(recentEllipses$`0.99`[,2]),]
+N<-recentEllipses$`0.99`[which.max(recentEllipses$`0.99`[,2]),]
+(scenarios<-rbind(W,E,N,S))
+```
+Plot the scenarios
+```{r}
+dataEllipse(hFactors[,1],hFactors[,2],
+                            levels=c(.99,.86466),ylim=c(-.2,.2),xlim=c(-.7,.6))
+points(scenarios,pch=19,col="blue")
+```
+Create scenario curves
+```{r}
+curveW<-scenarios["W",]%*%t(hLoadings)
+curveE<-scenarios["E",]%*%t(hLoadings)
+curveN<-scenarios["N",]%*%t(hLoadings)
+curveS<-scenarios["S",]%*%t(hLoadings)
+plot(Maturities,curveW,type="l",lty=1,lwd=2,col="green",ylim=c(-.5,.5))
+lines(Maturities,curveE,type="l",lty=1,lwd=2,col="blue")
+lines(Maturities,curveN,type="l",lty=1,lwd=2,col="red")
+lines(Maturities,curveS,type="l",lty=1,lwd=2,col="orange")
+legend("topright",legend=c("W","E","N","S"),lty=1,col=c("green","blue","red","orange"),lwd=2)
+```
+
+
+# 3 Scenarios based on hidden Markov models for longer history
+
+## 3.1 Define states with SOM
+
+```{r}
+# install package
+library(kohonen)
+```
+Create 100-day differences of factors
+```{r}
+dat100diff <- apply(as.matrix(Factors),2,diff,lag=100)
+dat.som <- som(as.matrix(dat100diff), grid = somgrid(5,5,"hexagonal"))
+plot(dat.som)
+```
+Plot representations of classes called codes
+```{r}
+plot(dat.som,"codes",codeRendering ="lines")
+som.hc <- cutree(hclust(dist(dat.som$codes[[1]])), 5)
+add.cluster.boundaries(dat.som, som.hc)
+```
+Plot characteristics of the map.
+```{r}
+par(mfrow=c(2,2))
+plot(dat.som,"codes",codeRendering ="lines")
+add.cluster.boundaries(dat.som, som.hc)
+
+plot(dat.som,"counts")
+plot(dat.som,"changes")
+plot(dat.som,"quality")
+add.cluster.boundaries(dat.som, som.hc)
+```
+
+```{r}
+head(dat.som$unit.classif,20)
+sapply(1:max(dat.som$unit.classif), function(z) sum(dat.som$unit.classif==z))
+```
+
+##3.2 Fitting Markov chain to the SOM classes
+
+Use markovchainGit() from package markovchain
+```{r}
+library(markovchain)
+```
+Fit the chain
+```{r}
+states <- dat.som$unit.classif
+mCh <- markovchainFit((states))
+transitionMatr <- mCh$estimate@transitionMatrix
+```
+Plot diagonal of the transition matrix
+```{r}
+plot(diag(transitionMatr), type="h")
+# display matrix
+round(transitionMatr*100,0)
+```
+Because the history is too long the process tends to stay in the same state too long.
+
+Select observations for 2013.
+```{r}
+idx2013<-sapply(rownames(dat),function(z) substr(z,start=nchar(z)-3,stop=nchar(z)))=="2013"
+sum(idx2013)
+# subsetdata
+dat2013<-dat[idx2013,]
+```
+Train SOM to 20-day differences of factors observed in 2013.
+```{r}
+dat2013.20diff<-apply(as.matrix(Factors),2,diff,lag=20)
+dat2013.som<-som(as.matrix(dat2013.20diff),grid = somgrid(5,5, "hexagonal"))
+plot(dat.som)
+
+plot(dat.som,"codes",codeRendering ="lines")
+som.hc <- cutree(hclust(dist(dat.som$codes[[1]])), 5)
+add.cluster.boundaries(dat.som, som.hc)
+```
+Classificated states and numbers of observations in them:
+```{r}
+head(dat2013.som$unit.classif,20)
+sapply(1:max(dat2013.som$unit.classif), function(z) sum(dat2013.som$unit.classif==z))
+states<-dat2013.som$unit.classif
+```
+Fit Markovchain to classified states
+```{r}
+mCh2013<-markovchainFit(states)
+transitionMatr2013<-mCh2013$estimate@transitionMatrix
+plot(diag(transitionMatr2013),type="h")
+round(transitionMatr2013*100,0)
+```
+This chain may give a more reasonable transitions
+
+#4. Tree classification
+
+Decision tree classification can help finding probabilities of scenarios
+Let scenarios be identified by SOM
+Then decision tree splits the factor space into areas(leafs) to which SOM states can be assigned with different probabilites
+```{r}
+library(rpart)
+library(rpart.plot)
+```
+## 4.1 Classify SOM states in factor space
+
+Apply decisiontree to sample of factors trajectories in 2013 using SOM predictions as response variable. 
+
+First run PCA on 2013 data
+```{r}
+# Run PCA model on yield levels
+PCA.2013 <- princomp(dat2013)
+# extract the factor loadings
+Loadings2013 <- PCA.2013$loadings[,1:2]
+# extract the factor scores
+Factors2013 <- PCA.2013$scores[,1:2]
+# extract the zero loadings
+Loading0_2013 <- PCA.2013$center
+```
+
+Run the classification tree algorithm. Centerthe factors
+```{r}
+# centered the factors
+F1<-Factors2013[,1]-mean(Factors2013[,1])
+F2<-Factors2013[,2]-mean(Factors2013[,2])
+# plot the 2 centered factors
+plot(F1,ylab="Factor")
+points(F2,col="red")
+```
+See which states were visited in 2013
+```{r}
+unique(states[idx2013])
+```
+Run classification tree using rpart() from library rpart.
+```{r}
+FactorsTree<-rpart(states[idx2013]~F1+F2,
+              control = rpart.control(cp = 0.001,minbucket=10,minsplit=2),method="class")
+# print the table to analyze the compoexity of the tree
+printcp(FactorsTree)
+```
+Pruning the tree is not necessary because cross validation error keeps declining.
+
+Visualize the tree.
+```{r}
+prp(FactorsTree,extra=4, # display prob of classes in the node
+    branch=.5, # change angle of branch lines
+    shadow.col="gray", # shadows under the leaves
+    branch.lty=3, # draw branches using dotted lines
+    split.cex=1.2, # make the split text larger than the node text
+    split.prefix="is ", # put "is " before split text
+    split.suffix="?", # put "?" after split text
+    split.box.col="lightgray", # lightgray split boxes (default is white)
+    split.border.col="darkgray", # darkgray border on split boxes
+    split.round=.5)
+
+```
+The tree helps identifying in which state the factors process occurs in each moment and identifying probabilities of different scenarios.
+The tree can also be used for simulation of states.
+
+
+# 5. Anomalies Detection Using Copula Quantile Regression
+
+Find empirical copula of factors 1 and 2.
+Plot the copula.
+Observe countermonotonic dependence.
+```{r}
+suppressWarnings(library(copula))
+plot(rank(Factors2013[,1]),rank(Factors2013[,2]))
+```
+
+## 5.1  Normal copula
+
+Fit Gaussian parametric copula
+```{r}
+tryGauss<-normalCopula(0,2)
+Gauss.fit<-fitCopula(tryGauss, 
+          pobs(Factors2013[,1:2],ties.method = "average"), 
+          method = "ml",
+          optim.method = "BFGS", 
+          optim.control = list(maxit=1000))
+Gauss.fit
+```
+
+## 5.2 Frank copula
+```{r}
+tryFrank<-frankCopula(1,2)
+Frank.fit<-fitCopula(tryFrank, 
+          pobs(Factors2013[,1:2],ties.method = "average"), 
+          method = "ml",
+          optim.method = "BFGS", 
+          optim.control = list(maxit=1000))
+Frank.fit
+```
+## 5.3 Clayton copula
+
+Fit Clayton parametric copula
+```{r}
+tryClayton<-claytonCopula(10,2)
+Clayton.fit<-fitCopula(tryClayton, 
+          pobs(Factors2013[,1:2],ties.method = "average"), 
+          method = "itau",
+          start=5,
+          optim.method = "BFGS", 
+          optim.control = list(maxit=1000))
+Clayton.fit
+```
+
+## 5.4 Gumbel copula
+
+```{r}
+tryGumbel<-gumbelCopula(10,2)
+Gumbel.fit<-fitCopula(tryGumbel, 
+          pobs(Factors2013[,1:2],ties.method = "average"), 
+          method = "itau",
+          start=5,
+          optim.method = "BFGS", 
+          optim.control = list(maxit=1000))
+```
+
+```{r}
+Gumbel.fit
+```
+Select best copula using goodness of fit test
+```{r}
+set.seed(172)
+Clayton.gof<-suppressWarnings(gofCopula(claytonCopula(),Factors2013[,1:2],
+                                        N=1000,method="Sn",simulation="mult"))
+Frank.gof<-suppressWarnings(gofCopula(frankCopula(),Factors2013[,1:2],N=1000,
+                                      method="Sn",simulation="mult"))
+Gauss.gof<-suppressWarnings(gofCopula(normalCopula(),Factors2013[,1:2],
+                                      N=1000,method="Sn",simulation="mult"))
+Gumbel.gof<-suppressWarnings(gofCopula(gumbelCopula(),Factors2013[,1:2],
+                                       N=1000,method="Sn",simulation="mult"))
+c(Clayton=Clayton.gof$p.value,Frank=Frank.gof$p.value,
+  Gauss=Gauss.gof$p.value,Gumbel=Gumbel.gof$p.value)
+```
+Based on the goodness of fit p-values neither of models fits well.
+But Frank and normal copulas are clearly better then Clayton and Gumbel.
+Complete comparison by using AIC for normal and Frank copulas.
+```{r}
+(AIC.compare<-c(Gaussian=AIC(Gauss.fit),Frank=AIC(Frank.fit)))
+```
+The best of the two is:
+```{r}
+c("Gaussian","Frank")[which.min(AIC.compare)]
+```
+
+## 5.5 Detecting anomalies
+
+Search for anomalies using the selected normal copula
+```{r}
+theta <- Gauss.fit@estimate
+```
+Define X-axis and the bounds: low(alpha=0.05), mid(alpha=0.5) and high(alpha=0.95)
+```{r}
+alpha<-.05
+F1Ranks<-rank(Factors2013[,1])/length(Factors2013[,1])
+
+lowBound<-sapply(F1Ranks,
+                      function(z)
+                        pnorm(qnorm(alpha)*sqrt(1-theta^2)+theta*qnorm(z))
+                )
+
+alpha<-.95
+HighBound<-sapply(F1Ranks,
+                      function(z)
+                        pnorm(qnorm(alpha)*sqrt(1-theta^2)+theta*qnorm(z))
+                )
+
+
+alpha<-.5
+midBound<-sapply(F1Ranks,
+                      function(z)
+                        pnorm(qnorm(alpha)*sqrt(1-theta^2)+theta*qnorm(z))
+)
+```
+Plot the copula with quantile regression plots.
+```{r}
+nFact<-dim(Factors2013)[1]
+anomLowFactor2Idx<-(rank(Factors2013[,2])/nFact<lowBound)
+anomHighFactor2Idx<-(rank(Factors2013[,2])/nFact>HighBound)
+plot(rank(Factors2013[,1])/nFact,rank(Factors2013[,2])/nFact,xlab="Factor 1",ylab="Factor 2")
+points(rank(Factors2013[,1])/nFact,lowBound,col="red",pch=".")
+points(rank(Factors2013[,1])/nFact,HighBound,col="red",pch=".")
+points(rank(Factors2013[,1])/nFact,midBound,col="green",pch="*",lwd=2)
+points(rank(Factors2013[,1])[anomLowFactor2Idx]/nFact,rank(Factors2013[,2])[anomLowFactor2Idx]/nFact,col="red")
+points(rank(Factors2013[,1])[anomHighFactor2Idx]/nFact,rank(Factors2013[,2])[anomHighFactor2Idx]/nFact,col="red")
+```
+
+Observations below and above the low and high quantiles are anomalies.
+Find the dates of high and low factor 2 anomalies.
+```{r}
+rownames(Factors2013)[anomHighFactor2Idx]
+rownames(Factors2013)[anomLowFactor2Idx]
+```
+Plot factors and mark days of anomalies.
+```{r}
+plot(1:nFact,Factors2013[,1],type="l",xlab="Index",ylab="Factor 1")
+points((1:nFact)[anomLowFactor2Idx],Factors2013[anomLowFactor2Idx,1],col="orange",pch=16)
+points((1:nFact)[anomHighFactor2Idx],Factors2013[anomHighFactor2Idx,1],col="blue",pch=16)
+legend("topright",legend=c("F2 Low","F2 High"),col=c("orange","blue"),pch=16)
+```
+On the first factor plot anomalies seem to indicate turning points.
+```{r}
+plot(1:nFact,Factors2013[,2],type="l",xlab="Index",ylab="Factor 2")
+points((1:nFact)[anomLowFactor2Idx],Factors2013[anomLowFactor2Idx,2],col="orange",pch=16)
+points((1:nFact)[anomHighFactor2Idx],Factors2013[anomHighFactor2Idx,2],col="blue",pch=16)
+legend("bottomright",legend=c("F2 Low","F2 High"),col=c("orange","blue"),pch=16)
+```
+On the second factor plot note that anomalies show high and low levels conditional on level of factor 1.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+copula
+
+cond dist of factor 2 given factor 1. red dots, for a given factor 1, factor 2 is too low. for a given level of rates, the steepness is too low
